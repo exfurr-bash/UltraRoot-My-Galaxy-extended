@@ -491,7 +491,11 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
         val bootToken = currentBootToken()
         if (KernelSuRuntime.isControlActive(app)) {
             if (bootToken != null) {
-                runCatching { AutoRootSupport.markVerifiedForBoot(app, bootToken) }
+                // Full fresh-install heal: recreate receipt + boot state when the
+                // app was just installed/wiped. The offline cache is deliberately
+                // NOT fabricated here; it still needs one Manual Online run.
+                // preProven avoids double-probing (isControlActive just passed).
+                runCatching { AutoRootSupport.healFreshInstallIfRooted(app, bootToken, preProven = true) }
             }
             return true
         }

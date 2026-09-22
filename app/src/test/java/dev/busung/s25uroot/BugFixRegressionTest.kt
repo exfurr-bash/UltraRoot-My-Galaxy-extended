@@ -116,6 +116,21 @@ class BugFixRegressionTest {
     }
 
     @Test
+    fun shouldHealFreshInstallNeedsLiveRoot() {
+        // Fresh install (no receipt) + live root => heal.
+        assertTrue(shouldHealFreshInstall(false, null, "boot-a", liveRoot = true))
+        // No live root => never heal, even without receipt.
+        assertFalse(shouldHealFreshInstall(false, null, "boot-a", liveRoot = false))
+        // Receipt already covers this boot => nothing to do.
+        assertFalse(shouldHealFreshInstall(true, "boot-a", "boot-a", liveRoot = true))
+        assertFalse(shouldHealFreshInstall(true, "  boot-a  ", "boot-a", liveRoot = true))
+        // Stale receipt (other boot) + live root => heal to current boot.
+        assertTrue(shouldHealFreshInstall(true, "boot-old", "boot-a", liveRoot = true))
+        // Blank boot token => never heal.
+        assertFalse(shouldHealFreshInstall(false, null, "   ", liveRoot = true))
+    }
+
+    @Test
     fun p0OffsetPatternAcceptsShortHex() {
         val pattern = Regex("slide-kaslr-ok[^\\n]*slide=([0-9a-fA-F]{1,16})")
         assertTrue(pattern.containsMatchIn("slide-kaslr-ok slide=170000"))

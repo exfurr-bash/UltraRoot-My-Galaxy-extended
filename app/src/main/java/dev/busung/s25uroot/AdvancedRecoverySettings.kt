@@ -4,6 +4,7 @@ import android.os.Build
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -47,6 +48,7 @@ import dev.busung.s25uroot.ui.hud.HudColors
 import dev.busung.s25uroot.ui.hud.hudCutShape
 import java.util.Locale
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 internal enum class RecoveryTool {
@@ -63,33 +65,39 @@ internal fun AdvancedRecoverySettings(
     onAutoRootEnabledChanged: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
+    val appContext = remember(context) { context.applicationContext }
     val scope = rememberCoroutineScope()
     val acceptedMessageTemplate = stringResource(R.string.recovery_action_accepted)
     val failedMessageTemplate = stringResource(R.string.recovery_action_failed)
-    var runningTool by remember { mutableStateOf<RecoveryTool?>(null) }
+    var runningTool by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<RecoveryTool?>(null) }
 
     fun runTool(tool: RecoveryTool, operation: suspend () -> RootRecoveryResult) {
         if (runningTool != null || !rootActive) return
         runningTool = tool
         scope.launch {
-            val result = runCatching { operation() }
-                .getOrElse { error ->
-                    RootRecoveryResult(
-                        accepted = false,
-                        detail = error.message ?: error.javaClass.simpleName,
-                    )
+            try {
+                val result = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    runCatching { operation() }
+                        .getOrElse { error ->
+                            RootRecoveryResult(
+                                accepted = false,
+                                detail = error.message ?: error.javaClass.simpleName,
+                            )
+                        }
                 }
-            val messageTemplate = if (result.accepted) {
-                acceptedMessageTemplate
-            } else {
-                failedMessageTemplate
+                val messageTemplate = if (result.accepted) {
+                    acceptedMessageTemplate
+                } else {
+                    failedMessageTemplate
+                }
+                Toast.makeText(
+                    appContext,
+                    String.format(Locale.getDefault(), messageTemplate, result.detail),
+                    Toast.LENGTH_LONG,
+                ).show()
+            } finally {
+                runningTool = null
             }
-            Toast.makeText(
-                context,
-                String.format(Locale.getDefault(), messageTemplate, result.detail),
-                Toast.LENGTH_LONG,
-            ).show()
-            runningTool = null
         }
     }
 
@@ -216,7 +224,18 @@ private fun HoldRecoveryCard(
         modifier = Modifier
             .fillMaxWidth()
             .alpha(alpha)
-            .semantics { role = Role.Button }
+            .clickable(
+                enabled = enabled && !busy,
+                role = Role.Button,
+                onClickLabel = "Hold to confirm: $title",
+                // Accessibility fallback: switch/TalkBack users cannot perform
+                // the hold gesture; a plain tap asks for explicit confirmation
+                // via the same haptic + callback path.
+                onClick = {
+                    performHoldHaptic(view)
+                    onConfirmed()
+                },
+            )
             .pointerInput(enabled, busy, title) {
                 if (!enabled || busy) return@pointerInput
                 awaitEachGesture {

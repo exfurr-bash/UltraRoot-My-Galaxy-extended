@@ -57,17 +57,26 @@ fun StyleRankBadge(
     popKey: Any? = rank,
 ) {
     val scale = remember(rank) { Animatable(0.55f) }
-    LaunchedEffect(popKey) {
+    val reducedMotion = animationsDisabled()
+    LaunchedEffect(popKey, reducedMotion) {
+        if (reducedMotion) {
+            scale.snapTo(1f)
+            return@LaunchedEffect
+        }
         // hitstop: freeze one frame at impact for punch, then overshoot in.
         delay(60)
         scale.snapTo(0.55f)
-        scale.animateTo(
-            targetValue = 1f,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMediumLow,
-            ),
-        )
+        try {
+            scale.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMediumLow,
+                ),
+            )
+        } finally {
+            runCatching { scale.snapTo(1f) }
+        }
     }
     // Re-pops via key change + bouncy spring on the badge container.
     Box(modifier = modifier, contentAlignment = Alignment.Center) {

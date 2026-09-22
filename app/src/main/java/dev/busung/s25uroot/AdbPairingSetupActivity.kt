@@ -26,7 +26,7 @@ class AdbPairingSetupActivity : ComponentActivity() {
             startPairingService()
         } else {
             Toast.makeText(
-                this,
+                applicationContext,
                 getString(R.string.adb_pair_notification_permission_required),
                 Toast.LENGTH_LONG,
             ).show()
@@ -43,11 +43,14 @@ class AdbPairingSetupActivity : ComponentActivity() {
             // adbd still accepts the local TLS identity.
             AppPreferences.setAdbPaired(this, false)
         } else if (AppPreferences.adbPaired(this)) {
+            setResult(RESULT_CANCELED)
             finish()
             return
         }
 
-        if (
+        // POST_NOTIFICATIONS only exists on API 33+; older devices go straight
+        // to the pairing service instead of requesting a phantom permission.
+        if (android.os.Build.VERSION.SDK_INT < 33 ||
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
         ) {
@@ -59,7 +62,20 @@ class AdbPairingSetupActivity : ComponentActivity() {
     }
 
     private fun startPairingService() {
-        ContextCompat.startForegroundService(this, AdbPairingService.startIntent(this))
+        try {
+            ContextCompat.startForegroundService(this, AdbPairingService.startIntent(this))
+            setResult(RESULT_OK)
+        } catch (e: Throwable) {
+            // Android 12+ background FGS restrictions can reject the start from
+            // a finishing bridge activity; surface instead of crashing.
+            android.util.Log.w("AdbPairingSetup", "Unable to start pairing service", e)
+            Toast.makeText(
+                applicationContext,
+                getString(R.string.adb_pair_notification_permission_required),
+                Toast.LENGTH_LONG,
+            ).show()
+            setResult(RESULT_CANCELED)
+        }
     }
 
     companion object {

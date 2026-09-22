@@ -36,20 +36,21 @@ fun BloodParticles(
     modifier: Modifier = Modifier,
     count: Int = 42,
 ) {
+    val safeCount = count.coerceIn(0, 64)
     var drops by remember { mutableStateOf<List<BloodDrop>>(emptyList()) }
-    var frame by remember { mutableStateOf(0) }
 
     LaunchedEffect(burstKey) {
         if (burstKey == null) return@LaunchedEffect
         val rng = Random(burstKey.hashCode())
-        drops = List(count) {
+        drops = List(safeCount) {
             val angle = rng.nextFloat() * Math.PI.toFloat() * 2f
             val speed = 3f + rng.nextFloat() * 9f
             BloodDrop(
                 x = 0.5f, y = 0.45f,
                 vx = cos(angle) * speed / 100f,
                 vy = sin(angle) * speed / 100f - 0.02f,
-                size = 2f + rng.nextFloat() * 6f,
+                // Density-independent: scaled by canvas size below via fraction.
+                size = 0.008f + rng.nextFloat() * 0.022f,
                 life = 1f,
                 color = listOf(HudColors.Blood, HudColors.BloodHot, HudColors.DeepRed, HudColors.Vengeance).random(rng),
             )
@@ -63,17 +64,17 @@ fun BloodParticles(
                 d.life -= 0.03f
                 if (d.life > 0f && d.y < 1.1f) d else null
             }
-            frame++
         }
         drops = emptyList()
     }
 
     if (drops.isEmpty()) return
-    Canvas(modifier = modifier.fillMaxSize()) {
+    Canvas(modifier = modifier.then(Modifier.fillMaxSize())) {
+        val minSide = minOf(size.width, size.height)
         drops.forEach { d ->
             drawCircle(
                 color = d.color.copy(alpha = d.life.coerceIn(0f, 1f)),
-                radius = d.size * d.life.coerceAtLeast(0.2f),
+                radius = d.size * minSide * d.life.coerceAtLeast(0.2f),
                 center = Offset(d.x * size.width, d.y * size.height),
             )
         }
@@ -89,7 +90,9 @@ fun RitualRing(
     modifier: Modifier = Modifier,
 ) {
     var angle by remember { mutableStateOf(0f) }
-    LaunchedEffect(spinning) {
+    val reducedMotion = animationsDisabled()
+    LaunchedEffect(spinning, reducedMotion) {
+        if (!spinning || reducedMotion) return@LaunchedEffect
         while (spinning) {
             delay(32)
             angle = (angle + 2.2f) % 360f

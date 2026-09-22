@@ -71,10 +71,13 @@ fun RootMyGalaxyTheme(
     )
 
     SideEffect {
-        val window = (context as Activity).window
-        WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = false
-            isAppearanceLightNavigationBars = false
+        runCatching {
+            val activity = context as? Activity ?: return@runCatching
+            val window = activity.window
+            WindowCompat.getInsetsController(window, window.decorView).apply {
+                isAppearanceLightStatusBars = false
+                isAppearanceLightNavigationBars = false
+            }
         }
     }
 

@@ -90,7 +90,7 @@ class HudSound(private val context: Context) {
         }
     }
 
-    private fun tone(freq: Float, ms: Int, volume: Float, square: Boolean = false) {
+    private suspend fun tone(freq: Float, ms: Int, volume: Float, square: Boolean = false) {
         val rate = 22050
         val n = (rate * ms / 1000)
         val buffer = ShortArray(n) { i ->
@@ -109,11 +109,14 @@ class HudSound(private val context: Context) {
             buffer.size * 2,
             android.media.AudioTrack.MODE_STATIC,
         )
-        track.write(buffer, 0, buffer.size)
-        track.play()
-        Thread.sleep(ms + 20L)
-        track.stop()
-        track.release()
+        try {
+            track.write(buffer, 0, buffer.size)
+            track.play()
+            kotlinx.coroutines.delay(ms + 20L)
+            runCatching { track.stop() }
+        } finally {
+            runCatching { track.release() }
+        }
     }
 }
 

@@ -32,15 +32,21 @@ fun HudTypewriter(
     charsPerSecond: Int = 90,
     enabled: Boolean = true,
 ) {
-    var visibleCount by remember(text) { mutableStateOf(if (enabled) 0 else text.length) }
-    LaunchedEffect(text, enabled) {
+    // Keep already-revealed prefix across text growth (live logs): only the
+    // tail animates instead of retyping from 0 on every emission.
+    var revealed by remember { mutableStateOf("") }
+    var visibleCount by remember { mutableStateOf(0) }
+    LaunchedEffect(text, enabled, charsPerSecond) {
         if (!enabled) {
+            revealed = text
             visibleCount = text.length
             return@LaunchedEffect
         }
+        // Common prefix between previous reveal and new text stays visible.
+        val common = revealed.commonPrefixWith(text).length.coerceAtMost(visibleCount)
+        revealed = text
         val target = text.length
-        val start = visibleCount.coerceAtMost(target)
-        var i = start
+        var i = common.coerceAtMost(target)
         val delayMs = (1000L / charsPerSecond.coerceAtLeast(20)).coerceAtLeast(8L)
         // Fast-forward long texts: reveal in chunks so ritual never feels slow.
         val chunk = when {
@@ -48,6 +54,7 @@ fun HudTypewriter(
             target > 200 -> 3
             else -> 1
         }
+        visibleCount = i
         while (i < target) {
             i = (i + chunk).coerceAtMost(target)
             visibleCount = i
@@ -61,21 +68,25 @@ fun HudTypewriter(
             color = color,
         )
         if (visibleCount < text.length) {
-            val transition = rememberInfiniteTransition(label = "hud-cursor")
-            val alpha by transition.animateFloat(
-                initialValue = 1f,
-                targetValue = 0f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(400),
-                    repeatMode = RepeatMode.Reverse,
-                ),
-                label = "hud-cursor-alpha",
-            )
-            Text(
-                text = "▌",
-                style = style,
-                color = HudColors.Blood.copy(alpha = alpha),
-            )
+            if (animationsDisabled()) {
+                Text(text = "▌", style = style, color = HudColors.Blood)
+            } else {
+                val transition = rememberInfiniteTransition(label = "hud-cursor")
+                val alpha by transition.animateFloat(
+                    initialValue = 1f,
+                    targetValue = 0f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(400),
+                        repeatMode = RepeatMode.Reverse,
+                    ),
+                    label = "hud-cursor-alpha",
+                )
+                Text(
+                    text = "▌",
+                    style = style,
+                    color = HudColors.Blood.copy(alpha = alpha),
+                )
+            }
         }
     }
 }

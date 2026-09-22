@@ -158,8 +158,23 @@ class AutoRootService : Service() {
 
     private suspend fun runGate() {
         val initialBootToken = AutoRootSupport.currentBootToken()
-        if (initialBootToken == null || !AutoRootSupport.shouldRunForBoot(this, initialBootToken)) {
-            Log.i(TAG, "Auto Root skipped: kernel boot id is unchanged (soft/userspace reboot) or unverifiable")
+        if (initialBootToken == null) {
+            Log.i(TAG, "Auto Root skipped: kernel boot id is unverifiable")
+            stopWithoutResult()
+            return
+        }
+        if (!AutoRootSupport.shouldRunForBoot(this, initialBootToken)) {
+            // Same-boot or fresh-install (no receipt) case: never exploit here.
+            // A live control check heals a fresh install (app reinstalled/wiped
+            // while KernelSU stayed active) without claiming an attempt.
+            if (KernelSuRuntime.isControlActive(this)) {
+                runCatching {
+                    AutoRootSupport.healFreshInstallIfRooted(this, initialBootToken, preProven = true)
+                }
+                Log.i(TAG, "Auto Root healed fresh install: KernelSU already active for this kernel boot")
+            } else {
+                Log.i(TAG, "Auto Root skipped: kernel boot id is unchanged (soft/userspace reboot) or unverifiable")
+            }
             stopWithoutResult()
             return
         }
@@ -174,6 +189,18 @@ class AutoRootService : Service() {
                 stopWithoutResult()
                 return
             }
+
+            // Live-root short-circuit BEFORE any cache require: a fresh install
+            // (receipt just healed, no offline cache yet) must not throw
+            // autoroot_prior_install_required nor touch requiresShellTransport.
+            // No exploit and no attempt claim on this path.
+            if (KernelSuRuntime.isControlActive(this)) {
+                runCatching { AutoRootSupport.markVerifiedForBoot(this, initialBootToken) }
+                Log.i(TAG, "Auto Root skipped: KernelSU already active for this kernel boot")
+                stopWithoutResult()
+                return
+            }
+
             require(AutoRootSupport.hasVerifiedInstall(this)) {
                 getString(R.string.autoroot_prior_install_required)
             }
@@ -185,13 +212,6 @@ class AutoRootService : Service() {
                 // automations race each other.
                 ShizukuBootService.startForAutoRoot(this)
                 Log.i(TAG, "Auto Root target requires shell transport; prioritizing Shizuku bootstrap")
-            }
-
-            if (KernelSuRuntime.isControlActive(this)) {
-                AutoRootSupport.markVerifiedForBoot(this, initialBootToken)
-                Log.i(TAG, "Auto Root skipped: KernelSU already active for this kernel boot")
-                stopWithoutResult()
-                return
             }
 
             if (isExactCzg3(DeviceSnapshot.current())) {

@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -121,7 +122,12 @@ class InstallActivity : ComponentActivity() {
                 themeMode = AppPreferences.themeMode(this),
             ) {
                 val installState by installViewModel.state.collectAsStateWithLifecycle()
-                BackHandler(enabled = installState.busy) {}
+                val view = LocalView.current
+                BackHandler(enabled = installState.busy) {
+                    // Blocked back during install: give feedback instead of silence.
+                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                    Toast.makeText(this, getString(R.string.install_busy_toast), Toast.LENGTH_SHORT).show()
+                }
                 LaunchedEffect(startInstall, profileId, rootMode) {
                     if (startInstall) installViewModel.install(profileId, rootMode)
                 }
@@ -174,14 +180,21 @@ private fun InstallScreen(
     val view = LocalView.current
     val context = LocalContext.current
     val sound = rememberHudSound()
-    val soundOn = remember { AppPreferences.soundEnabled(context) }
+    val soundOn = remember(context) { AppPreferences.soundEnabled(context) }
     var flash by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(installState.log) {
-        delay(40)
-        logScrollState.scrollTo(logScrollState.maxValue)
+    // Key on length, not the whole MB string; debounce and cancel stale scrolls.
+    LaunchedEffect(installState.log.length) {
+        delay(80)
+        runCatching { logScrollState.scrollTo(logScrollState.maxValue) }
     }
-    // Phase-change punch: flash + sound + haptics.
+    // Phase-change punch: flash + sound + haptics. Skip the initial composition
+    // so entering the screen doesn't play a phase sound.
+    var firstPhase by remember { mutableStateOf(true) }
     LaunchedEffect(installState.phase) {
+        if (firstPhase) {
+            firstPhase = false
+            return@LaunchedEffect
+        }
         flash = when (installState.phase) {
             InstallPhase.Failed -> 0.45f
             InstallPhase.Installed -> 0.35f
@@ -239,8 +252,8 @@ private fun InstallScreen(
                         UltrakillTitle(
                             text = stringResource(R.string.install_title),
                             sub = when {
-                                installState.mode == RootMode.Offline -> "offline ritual — no download"
-                                installState.busy -> "do not look away"
+                                installState.mode == RootMode.Offline -> stringResource(R.string.install_subtitle_offline)
+                                installState.busy -> stringResource(R.string.install_subtitle_online)
                                 else -> null
                             },
                             modifier = Modifier.weight(1f),

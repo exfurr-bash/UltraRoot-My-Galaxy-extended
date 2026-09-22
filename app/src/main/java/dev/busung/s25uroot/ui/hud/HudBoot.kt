@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -39,9 +41,22 @@ fun HudBootIntro(
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var line by remember { mutableStateOf(0) }
-    var skipped by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
+    var line by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+    var done by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val reducedMotion = animationsDisabled()
+    fun finish() {
+        // Idempotent: tap-during-final-frame and parent+child click
+        // propagation must not invoke onDone twice.
+        if (!done) {
+            done = true
+            onDone()
+        }
+    }
+    LaunchedEffect(reducedMotion) {
+        if (reducedMotion) {
+            line = 3
+            return@LaunchedEffect
+        }
         delay(500)
         line = 1
         delay(650)
@@ -49,33 +64,32 @@ fun HudBootIntro(
         delay(650)
         line = 3
         delay(700)
-        if (!skipped) onDone()
-    }
-    fun skip() {
-        skipped = true
-        onDone()
+        finish()
     }
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(HudColors.Void)
-            .hudAnimatedScanlines(enabled = true, alpha = 0.09f)
+            .background(MaterialTheme.colorScheme.background)
+            .hudAnimatedScanlines(enabled = !reducedMotion, alpha = 0.09f)
+            .padding(28.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-                onClick = ::skip,
-            )
-            .padding(28.dp),
+                onClick = ::finish,
+                onClickLabel = "Skip intro",
+            ),
         contentAlignment = Alignment.Center,
     ) {
         RitualRing(
-            spinning = true,
+            spinning = !reducedMotion,
             modifier = Modifier.size(240.dp).align(Alignment.Center),
         )
         Column(
             verticalArrangement = Arrangement.spacedBy(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.align(Alignment.Center),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .verticalScroll(rememberScrollState()),
         ) {
             HudHeader(left = "HELL", right = "BOOT")
             BootLine(visible = line >= 1, text = "MANKIND IS DEAD.")
@@ -92,7 +106,7 @@ fun HudBootIntro(
             }
         }
         TextButton(
-            onClick = ::skip,
+            onClick = ::finish,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
         ) {
             Text(

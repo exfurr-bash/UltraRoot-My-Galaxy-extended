@@ -23,6 +23,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -51,6 +54,7 @@ fun HudHeader(
             letterSpacing = 1.sp,
             color = HudColors.Blood,
             maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         )
         HorizontalDivider(
             modifier = Modifier.weight(1f),
@@ -65,6 +69,7 @@ fun HudHeader(
             letterSpacing = 1.sp,
             color = HudColors.Steel,
             maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         )
     }
 }
@@ -78,8 +83,9 @@ fun HudLed(
     color: Color,
     blinking: Boolean = false,
     modifier: Modifier = Modifier,
+    contentDescription: String? = null,
 ) {
-    val alpha = if (blinking) {
+    val alpha = if (blinking && !animationsDisabled()) {
         val transition = rememberInfiniteTransition(label = "hud-led")
         val a by transition.animateFloat(
             initialValue = 1f,
@@ -98,8 +104,21 @@ fun HudLed(
         modifier = modifier
             .size(8.dp)
             .clip(CircleShape)
-            .background(color.copy(alpha = alpha)),
+            .background(color.copy(alpha = alpha))
+            .semanticsForLed(contentDescription, blinking),
     )
+}
+
+private fun Modifier.semanticsForLed(
+    description: String?,
+    blinking: Boolean,
+): Modifier = if (description != null) {
+    this.semantics(mergeDescendants = true) {
+        this.contentDescription = description
+        this.stateDescription = if (blinking) "Active" else "Idle"
+    }
+} else {
+    this
 }
 
 /**
@@ -134,7 +153,7 @@ fun HudCornerTicks(
 @Composable
 fun HudSectionLabel(text: String) {
     Text(
-        text = "/// $text".uppercase(),
+        text = "/// $text".uppercase(java.util.Locale.getDefault()),
         style = MaterialTheme.typography.labelLarge.copy(
             fontFamily = FontFamily.Monospace,
             color = HudColors.Blood,

@@ -11,6 +11,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -29,9 +31,9 @@ fun UltrakillTitle(
     accent: Color = HudColors.Blood,
     sub: String? = null,
 ) {
-    Column(modifier = modifier) {
+    Column(modifier = modifier.semantics(mergeDescendants = true) { heading() }) {
         Text(
-            text = text.uppercase(),
+            text = text.uppercase(java.util.Locale.getDefault()),
             style = MaterialTheme.typography.headlineLarge.copy(
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Black,
@@ -57,22 +59,23 @@ fun UltrakillTitle(
                 .height(10.dp),
         ) {
             val y = size.height / 2f
+            val density = size.height / 10.dp.toPx().coerceAtLeast(1f)
             drawLine(
                 color = accent,
                 start = Offset(0f, y),
                 end = Offset(size.width * 0.42f, y),
-                strokeWidth = 4f,
+                strokeWidth = 4f * density,
             )
             drawLine(
                 color = accent.copy(alpha = 0.4f),
                 start = Offset(size.width * 0.44f, y),
                 end = Offset(size.width * 0.62f, y),
-                strokeWidth = 2f,
+                strokeWidth = 2f * density,
             )
         }
         if (sub != null) {
             Text(
-                text = sub.uppercase(),
+                text = sub.uppercase(java.util.Locale.getDefault()),
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,

@@ -51,7 +51,17 @@ class AutoRootBootReceiver : BroadcastReceiver() {
 
         // Keep BOOT_COMPLETED deliberately tiny: no payload hashing, network or
         // file walking here. The foreground gate performs full cache validation.
+        // Fresh-install exception: with no receipt shouldRunForBoot is false, but
+        // KernelSU may already be active (app reinstalled/wiped). A fast native
+        // probe heals the receipt so the UI reports Installed; no gate, no
+        // exploit and no attempt claim on this path.
         if (!AutoRootSupport.shouldRunForBoot(context, bootToken)) {
+            if (NativeProbe.isKernelSuActiveSafe()) {
+                runCatching {
+                    AutoRootSupport.healFreshInstallIfRooted(context, bootToken, preProven = true)
+                }
+                Log.i(TAG, "Fresh install with active KernelSU; receipt healed, no gate needed")
+            }
             stopAutoRootRuntime(context)
             return
         }

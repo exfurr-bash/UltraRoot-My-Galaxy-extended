@@ -13,8 +13,12 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 
 /**
- * Centralized fast/responsive motion specs. All <220ms so interaction never waits.
+ * Centralized fast/responsive motion specs. Enters run 150-380ms
+ * (see ULTRA_ENTER/RANK_POP/SHAKE); interaction-critical fades stay <220ms.
  * Brutal expansion: bouncy enters, rank pops, shakes and glitches.
+ *
+ * Motion-sensitive users: check [animationsDisabled] before launching
+ * infinite transitions (cursor blink, scanlines, rings, Lottie loops).
  */
 object HudMotion {
     const val FAST = 150

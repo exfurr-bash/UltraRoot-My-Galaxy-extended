@@ -151,8 +151,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontFamily
@@ -309,6 +312,7 @@ private val languageOptions = listOf(
     LanguageOption(R.string.language_korean, "ko"),
     LanguageOption(R.string.language_english, "en"),
     LanguageOption(R.string.language_german, "de"),
+    LanguageOption(R.string.language_french, "fr"),
     LanguageOption(R.string.language_japanese, "ja"),
     LanguageOption(R.string.language_chinese, "zh-CN"),
     LanguageOption(R.string.language_chinese_traditional, "zh-TW"),
@@ -372,19 +376,23 @@ private fun RootApp(
     val installState by installViewModel.state.collectAsStateWithLifecycle()
     val history by installViewModel.history.collectAsStateWithLifecycle()
     val targetCatalog by installViewModel.targetCatalog.collectAsStateWithLifecycle()
-    var selectedPage by remember { mutableStateOf(AppPage.Overview) }
-    var showInstallConfirmation by remember { mutableStateOf(false) }
-    var showTargetPicker by remember { mutableStateOf(false) }
-    var selectedProfile by remember { mutableStateOf<TargetProfile?>(null) }
-    var compatibilityWarning by remember { mutableStateOf<CompatibilityWarning?>(null) }
-    val device = remember { DeviceSnapshot.current() }
+    var selectedPage by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(AppPage.Overview) }
+    var showInstallConfirmation by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var showTargetPicker by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var selectedProfileId by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    var compatibilityWarning by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<CompatibilityWarning?>(null) }
+    var deviceSnapshot by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    @Suppress("UNUSED_VARIABLE")
+    val deviceRefreshToken = deviceSnapshot
+    val device = remember(deviceRefreshToken) { DeviceSnapshot.current() }
     val context = LocalContext.current
+    val appContext = remember(context) { context.applicationContext }
     val view = LocalView.current
     val scope = rememberCoroutineScope()
     val sound = rememberHudSound()
     val hazeState = remember { HazeState() }
     var updateStatus by remember { mutableStateOf<UpdateStatus>(UpdateStatus.Idle) }
-    var updateCardDismissed by remember { mutableStateOf(false) }
+    var updateCardDismissed by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val checkForUpdate: () -> Unit = {
         if (!updateStatus.busy) {
             updateStatus = UpdateStatus.Checking
@@ -402,18 +410,20 @@ private fun RootApp(
     val startDownload: (UpdateInfo) -> Unit = { info ->
         val apkUrl = info.apkUrl
         if (apkUrl == null) {
-            AppUpdater.openReleasesPage(context)
+            AppUpdater.openReleasesPage(appContext)
         } else {
             updateStatus = UpdateStatus.Downloading(info, 0f)
             scope.launch {
-                val apk = AppUpdater.downloadApk(context, apkUrl) { progress ->
+                val apk = AppUpdater.downloadApk(appContext, apkUrl) { progress ->
                     updateStatus = UpdateStatus.Downloading(info, progress)
                 }
-                if (apk == null || !AppUpdater.installApk(context, apk)) {
-                    Toast.makeText(context, context.getString(R.string.updater_download_failed), Toast.LENGTH_SHORT).show()
-                    AppUpdater.openReleasesPage(context)
+                if (apk == null || !AppUpdater.installApk(appContext, apk)) {
+                    Toast.makeText(appContext, appContext.getString(R.string.updater_download_failed), Toast.LENGTH_SHORT).show()
+                    AppUpdater.openReleasesPage(appContext)
+                    updateStatus = UpdateStatus.Failed
+                } else {
+                    updateStatus = UpdateStatus.Available(info)
                 }
-                updateStatus = UpdateStatus.Available(info)
             }
         }
     }
@@ -427,7 +437,7 @@ private fun RootApp(
             onDismiss = { showTargetPicker = false },
             onRetry = installViewModel::loadTargetCatalog,
             onNext = { profile ->
-                selectedProfile = profile
+                selectedProfileId = profile.profileId
                 showTargetPicker = false
                 compatibilityWarning = when {
                     !profile.matchesDevice(device) -> CompatibilityWarning.Device
@@ -440,7 +450,12 @@ private fun RootApp(
     }
 
     compatibilityWarning?.let { warning ->
-        val profile = selectedProfile ?: return@let
+        val profile = targetCatalog.profiles.firstOrNull { it.profileId == selectedProfileId }
+            ?: run {
+                // Cache/catalog changed under the dialog; drop stale warning.
+                compatibilityWarning = null
+                return@let
+            }
         AlertDialog(
             onDismissRequest = {
                 compatibilityWarning = null
@@ -507,13 +522,12 @@ private fun RootApp(
     }
 
     if (showInstallConfirmation) {
-        var rootMode by remember { mutableStateOf(RootMode.Online) }
-        val offlineProfile = remember(showInstallConfirmation) {
+        var rootModePreference by remember { mutableStateOf(RootMode.Online) }
+        val offlineProfile = remember {
             runCatching { KnownGoodPayloadStore.load(context).profile }.getOrNull()
         }
-        if (offlineProfile == null && rootMode == RootMode.Offline) {
-            rootMode = RootMode.Online
-        }
+        // Derive effective mode: never write state during composition.
+        val rootMode = if (offlineProfile == null) RootMode.Online else rootModePreference
         AlertDialog(
             onDismissRequest = { showInstallConfirmation = false },
             icon = { Icon(Icons.Rounded.Security, contentDescription = null) },
@@ -536,7 +550,7 @@ private fun RootApp(
                                 onCheckedChange = {
                                     clickHaptic(view)
                                     sound.play(HudSfx.Click, soundEnabled)
-                                    rootMode = mode
+                                    rootModePreference = mode
                                 },
                                 enabled = enabled,
                                 modifier = Modifier.weight(1f),
@@ -558,6 +572,7 @@ private fun RootApp(
                                         },
                                     ),
                                     maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             }
                         }
@@ -577,8 +592,8 @@ private fun RootApp(
                 FilledTonalButton(onClick = {
                     clickHaptic(view)
                     showInstallConfirmation = false
-                    openInstaller(selectedProfile?.profileId, rootMode)
-                    selectedProfile = null
+                    openInstaller(selectedProfileId, rootMode)
+                    selectedProfileId = null
                 }) {
                     Text(stringResource(R.string.action_confirm))
                 }
@@ -595,6 +610,7 @@ private fun RootApp(
     }
 
     var damageFlash by remember { mutableStateOf(0f) }
+    var damageTrigger by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
     LaunchedEffect(damageFlash) {
         if (damageFlash > 0f) {
             delay(180)
@@ -602,9 +618,24 @@ private fun RootApp(
         }
     }
     // Punch the screen when install fails or succeeds from background refresh.
+    // Keyed on a monotonic trigger so consecutive failures retrigger the flash.
     LaunchedEffect(installState.phase) {
-        if (installState.phase == InstallPhase.Failed) damageFlash = 0.4f
+        if (installState.phase == InstallPhase.Failed || installState.phase == InstallPhase.Installed) {
+            damageTrigger += 1
+            damageFlash = 0.4f
+        }
     }
+
+    // Back returns to Overview instead of exiting, and closes top dialogs first.
+    BackHandler(enabled = showInstallConfirmation) { showInstallConfirmation = false }
+    BackHandler(enabled = !showInstallConfirmation && compatibilityWarning != null) {
+        compatibilityWarning = null
+        showTargetPicker = true
+    }
+    BackHandler(enabled = !showInstallConfirmation && compatibilityWarning == null && showTargetPicker) {
+        showTargetPicker = false
+    }
+    BackHandler(enabled = selectedPage != AppPage.Overview) { selectedPage = AppPage.Overview }
 
     SharedTransitionLayout {
         Box(
@@ -689,7 +720,8 @@ private fun RootApp(
                             onStartDownload = startDownload,
                             soundEnabled = soundEnabled,
                             onInstall = {
-                                selectedProfile = null
+                                if (installState.busy) return@OverviewPage
+                                selectedProfileId = null
                                 // Fallback manual: se o auto-detect falhou (fase Failed),
                                 // oferece o catálogo completo mesmo com o Advanced
                                 // desligado, em vez de repetir o automático que
@@ -769,8 +801,13 @@ private fun clickHaptic(view: View) {
 
 @Composable
 private fun DialogDimAmount(amount: Float) {
-    val window = (LocalView.current.parent as DialogWindowProvider).window
-    SideEffect { window.setDimAmount(amount) }
+    val view = LocalView.current
+    SideEffect {
+        runCatching {
+            val window = (view.parent as? DialogWindowProvider)?.window ?: return@runCatching
+            window.setDimAmount(amount)
+        }
+    }
 }
 
 @Composable
@@ -1053,7 +1090,10 @@ private fun InstallStatusCard(installState: InstallUiState, onInstall: () -> Uni
     val sound = rememberHudSound()
     val interactionSource = remember { MutableInteractionSource() }
     val uriHandler = LocalUriHandler.current
-    val managerInstalled = remember(installState) { isKernelSuManagerInstalled(context) }
+    val appContext = remember(context) { context.applicationContext }
+    // Key only on phase: the full InstallUiState includes the ever-growing log,
+    // which would re-query PackageManager on every log line.
+    val managerInstalled = remember(installState.phase) { isKernelSuManagerInstalled(appContext) }
     val failed = installState.phase == InstallPhase.Failed
     val installed = installState.phase == InstallPhase.Installed
     val borderColor by animateColorAsState(
@@ -1187,7 +1227,7 @@ private fun InstallStatusCard(installState: InstallUiState, onInstall: () -> Uni
 @Composable
 private fun DeviceCard(device: DeviceSnapshot) {
     val view = LocalView.current
-    var kernelExpanded by remember { mutableStateOf(false) }
+    var kernelExpanded by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     Card(
         modifier = Modifier.fillMaxWidth().animateContentSize(),
         shape = hudCutShape(12.dp),
@@ -1231,7 +1271,11 @@ private fun InfoRow(
             Modifier
                 .fillMaxWidth()
                 .clip(MaterialTheme.shapes.medium)
-                .clickable(onClick = onClick)
+                .clickable(
+                    onClick = onClick,
+                    role = Role.Button,
+                )
+                .semantics(mergeDescendants = true) { role = Role.Button }
         } else {
             Modifier
         },
@@ -1255,9 +1299,18 @@ private fun HistoryPage(
 ) {
     val view = LocalView.current
     val context = LocalContext.current
-    var selectedHistoryId by remember { mutableStateOf<String?>(null) }
-    var selectionIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var pendingDeleteIds by remember { mutableStateOf<Set<String>?>(null) }
+    val appContext = remember(context) { context.applicationContext }
+    val scope = rememberCoroutineScope()
+    var selectedHistoryId by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    var selectionIds by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<Set<String>>(emptySet()) }
+    var pendingDeleteIds by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<Set<String>?>(null) }
+    // Drop stale selection when entries disappear (e.g. deleted underneath).
+    LaunchedEffect(history) {
+        val ids = history.map { it.id }.toSet()
+        if (selectedHistoryId != null && selectedHistoryId !in ids) selectedHistoryId = null
+        val stale = selectionIds - ids
+        if (stale.isNotEmpty()) selectionIds = selectionIds - stale
+    }
     val selectedEntry = history.firstOrNull { it.id == selectedHistoryId }
     val selectableIds = history
         .filter { it.result != InstallRunResult.Running }
@@ -1267,7 +1320,12 @@ private fun HistoryPage(
     val exportZipLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
-        result.data?.data?.let { uri -> HistoryLogExporter.save(context, uri, history) }
+        if (result.resultCode != android.app.Activity.RESULT_OK) return@rememberLauncherForActivityResult
+        result.data?.data?.let { uri ->
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { HistoryLogExporter.save(appContext, uri, history) }
+            }
+        }
     }
     BackHandler(enabled = selectedEntry != null || selecting) {
         if (selecting) {
@@ -1327,6 +1385,9 @@ private fun HistoryPage(
                 selectionIds = selectionIds,
                 selectableIds = selectableIds,
                 onToggleSelection = { id ->
+                    // Running entries are not selectable; ignore taps on them even
+                    // when the card is tapped in selection mode.
+                    if (id !in selectableIds) return@HistoryList
                     selectionIds = if (id in selectionIds) {
                         selectionIds - id
                     } else {
@@ -1500,7 +1561,7 @@ private fun HistoryList(
                     onDeleteSelected()
                 },
                 icon = { Icon(Icons.Rounded.Delete, contentDescription = null) },
-                text = { Text(stringResource(R.string.history_delete_selected, selectionIds.size)) },
+                text = { Text(pluralStringResource(R.plurals.history_delete_selected_title, selectionIds.size, selectionIds.size)) },
             )
         }
     }
@@ -1565,6 +1626,7 @@ private fun HistoryEntryCard(
             .clip(shape)
             .combinedClickable(
                 interactionSource = interactionSource,
+                role = Role.Checkbox,
                 onClick = {
                     clickHaptic(view)
                     onClick()
@@ -1573,7 +1635,12 @@ private fun HistoryEntryCard(
                     clickHaptic(view)
                     onLongClick()
                 },
-            ),
+                onClickLabel = stringResource(
+                    if (selectionMode && isSelected) R.string.action_deselect
+                    else R.string.action_select
+                ),
+            )
+            .semantics { selected = selectionMode && isSelected },
         shape = shape,
         border = if (borderWidth > 0.dp) {
             BorderStroke(borderWidth, HudColors.Blood)
@@ -1849,15 +1916,16 @@ private fun SettingsPage(
     val context = LocalContext.current
     val view = LocalView.current
     val scope = rememberCoroutineScope()
-    var showLanguageDialog by remember { mutableStateOf(false) }
-    var showColorDialog by remember { mutableStateOf(false) }
-    var showUptimeDialog by remember { mutableStateOf(false) }
-    var showAboutDialog by remember { mutableStateOf(false) }
-    var showShizukuMissingDialog by remember { mutableStateOf(false) }
+    val settingsSound = rememberHudSound()
+    var showLanguageDialog by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var showColorDialog by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var showUptimeDialog by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var showAboutDialog by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var showShizukuMissingDialog by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var languageMenuTop by remember { mutableStateOf(32.dp) }
     var colorMenuTop by remember { mutableStateOf(32.dp) }
     var uptimeMenuTop by remember { mutableStateOf(32.dp) }
-    var uptimeSeconds by remember { mutableStateOf(AppPreferences.manualBootMinUptimeSeconds(context)) }
+    var uptimeSeconds by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(AppPreferences.manualBootMinUptimeSeconds(context)) }
     val density = LocalDensity.current
     val currentLanguageTag = AppPreferences.languageTag(context)
 
@@ -2088,7 +2156,6 @@ private fun SettingsPage(
         }
         item { SectionLabel(stringResource(R.string.feedback)) }
         item {
-            val sound = rememberHudSound()
             SettingsSwitchCard(
                 icon = Icons.AutoMirrored.Rounded.VolumeUp,
                 title = stringResource(R.string.sound_effects),
@@ -2097,7 +2164,7 @@ private fun SettingsPage(
                 onCheckedChange = {
                     clickHaptic(view)
                     onSoundChanged(it)
-                    if (it) sound.play(HudSfx.Confirm, true)
+                    if (it) settingsSound.play(HudSfx.Confirm, true)
                 },
             )
         }
@@ -2224,8 +2291,8 @@ private fun TargetSelectionSheet(
     onRetry: () -> Unit,
     onNext: (TargetProfile) -> Unit,
 ) {
-    var showOnlyMyDevice by remember { mutableStateOf(true) }
-    var selectedProfileId by remember { mutableStateOf<String?>(null) }
+    var showOnlyMyDevice by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(true) }
+    var selectedProfileId by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     val view = LocalView.current
     val visibleProfiles = remember(catalog.profiles, showOnlyMyDevice, device) {
         if (showOnlyMyDevice) {
@@ -2286,7 +2353,13 @@ private fun TargetSelectionSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Checkbox(checked = showOnlyMyDevice, onCheckedChange = null)
+                // Decorative: the Row toggleable owns focus/semantics; exclude the
+                // inner box from accessibility to avoid duplicate focus.
+                Checkbox(
+                    checked = showOnlyMyDevice,
+                    onCheckedChange = null,
+                    modifier = Modifier.clearAndSetSemantics {},
+                )
                 Text(stringResource(R.string.show_my_device_only), style = MaterialTheme.typography.titleMedium)
             }
 
@@ -2515,7 +2588,11 @@ private fun SettingsSwitchCard(
                     color = HudColors.BoneDim,
                 )
             }
-            Switch(checked = checked, onCheckedChange = null)
+            Switch(
+                checked = checked,
+                onCheckedChange = null,
+                modifier = Modifier.semantics { stateDescription = if (checked) "On" else "Off" },
+            )
         }
     }
 }
@@ -2528,7 +2605,9 @@ private fun ThemeModeSelector(
     val view = LocalView.current
     val themeModes = AppThemeMode.entries
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
     ) {
         themeModes.forEachIndexed { index, mode ->
@@ -2560,7 +2639,7 @@ private fun ThemeModeSelector(
                     contentDescription = null,
                 )
                 Spacer(Modifier.size(ToggleButtonDefaults.IconSpacing))
-                Text(themeModeLabel(mode), maxLines = 1)
+                Text(themeModeLabel(mode), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -2686,8 +2765,8 @@ private fun SideChoiceMenu(
     onSelected: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var visible by remember { mutableStateOf(false) }
-    var closing by remember { mutableStateOf(false) }
+    var visible by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var closing by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val view = LocalView.current
     val scrimAlpha by animateFloatAsState(
@@ -2732,6 +2811,8 @@ private fun SideChoiceMenu(
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
+                        role = Role.Button,
+                        onClickLabel = stringResource(R.string.action_close),
                         onClick = { closeMenu(onDismiss) },
                     ),
             )
@@ -2763,12 +2844,7 @@ private fun SideChoiceMenu(
                 Surface(
                     modifier = Modifier
                         .width(196.dp)
-                        .heightIn(max = 620.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = {},
-                        ),
+                        .heightIn(max = 620.dp),
                     shape = hudCutShape(10.dp),
                     border = BorderStroke(1.dp, HudColors.Blood.copy(alpha = 0.5f)),
                     color = HudColors.PlateHigh,

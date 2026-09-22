@@ -129,7 +129,13 @@ class AutoRootShellTransportContractTest {
 
         val viewModel = source("InstallViewModel.kt")
         assertTrue(viewModel.contains("KernelSuRuntime.isControlActive(app)"))
-        assertTrue(viewModel.contains("AutoRootSupport.markVerifiedForBoot(app, bootToken)"))
+        // Fresh-install heal recreates receipt+boot state without fabricating
+        // the offline cache; the gate still uses markVerifiedForBoot.
+        assertTrue(viewModel.contains("AutoRootSupport.healFreshInstallIfRooted(app, bootToken"))
+
+        val support = source("AutoRootSupport.kt")
+        assertTrue(support.contains("fun healFreshInstallIfRooted("))
+        assertTrue(support.contains("fun markVerifiedForBoot("))
 
         val gate = source("AutoRootService.kt")
         assertTrue(gate.contains("KernelSuRuntime.isControlActive(this)"))

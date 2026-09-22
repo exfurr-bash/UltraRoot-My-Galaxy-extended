@@ -55,6 +55,45 @@ internal object AutoRootSupport {
     }
 
     /**
+     * Fresh-install heal: when KernelSU is provably active for this boot but the
+     * app was just installed/wiped (no receipt), recreate the receipt and boot
+     * state WITHOUT fabricating an offline payload cache. The cache still
+     * requires one successful Manual Online run; the UI reports Installed while
+     * Auto Root stays in "awaiting first verification" instead of "unsupported".
+     * Returns true when a heal was performed. Never claims an exploit attempt.
+     *
+     * @param preProven set when the caller already proved live root (avoids a
+     * second, potentially slow control probe).
+     */
+    fun healFreshInstallIfRooted(
+        context: Context,
+        bootToken: String,
+        preProven: Boolean = false,
+    ): Boolean {
+        val prefs = context.getSharedPreferences(INSTALL_RECEIPT, Context.MODE_PRIVATE)
+        val receiptVerified = prefs.getBoolean(RECEIPT_VERIFIED, false)
+        val receiptToken = prefs.getString(RECEIPT_BOOT_TOKEN, null)
+        if (!shouldHealFreshInstall(receiptVerified, receiptToken, bootToken, liveRoot = true)) {
+            return false // receipt already covers this boot; nothing to heal
+        }
+        val live = preProven || KernelSuRuntime.isControlActive(context)
+        if (!shouldHealFreshInstall(receiptVerified, receiptToken, bootToken, live)) return false
+        val stored = prefs.edit()
+            .putString(RECEIPT_BOOT_TOKEN, bootToken)
+            .putBoolean(RECEIPT_VERIFIED, true)
+            .commit()
+        return stored
+    }
+
+    /** True when a receipt exists for this boot but the offline cache is absent. */
+    fun isAwaitingFirstVerification(context: Context, bootToken: String): Boolean {
+        val prefs = context.getSharedPreferences(INSTALL_RECEIPT, Context.MODE_PRIVATE)
+        val verifiedForBoot = prefs.getBoolean(RECEIPT_VERIFIED, false) &&
+            prefs.getString(RECEIPT_BOOT_TOKEN, null)?.trim() == bootToken
+        return verifiedForBoot && !KnownGoodPayloadStore.hasValid(context)
+    }
+
+    /**
      * Consume the framework BOOT_COMPLETED event for this kernel boot exactly once.
      *
      * A zygote/system_server userspace restart may emit another BOOT_COMPLETED while
@@ -99,6 +138,23 @@ internal object AutoRootSupport {
 internal fun shouldRunForBoot(currentBootToken: String, verifiedBootToken: String?): Boolean {
     if (currentBootToken.isBlank() || verifiedBootToken.isNullOrBlank()) return false
     return currentBootToken.trim() != verifiedBootToken.trim()
+}
+
+/**
+ * Pure fresh-install heal decision. True only when live root is proven AND the
+ * stored receipt does not already cover [bootToken]. Unit-testable without a
+ * Context; [AutoRootSupport.healFreshInstallIfRooted] applies the side effect.
+ */
+internal fun shouldHealFreshInstall(
+    receiptVerified: Boolean,
+    receiptToken: String?,
+    bootToken: String,
+    liveRoot: Boolean,
+): Boolean {
+    if (!liveRoot) return false
+    if (bootToken.isBlank()) return false
+    if (receiptVerified && receiptToken?.trim() == bootToken.trim()) return false
+    return true
 }
 
 internal fun fileMatchesArtifact(file: File, artifact: RemoteArtifact): Boolean {

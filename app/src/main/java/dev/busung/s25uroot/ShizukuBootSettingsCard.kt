@@ -43,6 +43,7 @@ import dev.busung.s25uroot.ui.hud.HudColors
 import dev.busung.s25uroot.ui.hud.HudHeader
 import dev.busung.s25uroot.ui.hud.hudCutShape
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Settings surface for RMG's independent, optional pre-root Shizuku bootstrap. */
 @Composable
@@ -52,12 +53,17 @@ internal fun ShizukuBootSettingsCard() {
     val forgetDoneText = stringResource(R.string.wireless_adb_forget_done)
     val forgetFailedText = stringResource(R.string.wireless_adb_forget_failed)
     val pairingSearchingText = stringResource(R.string.adb_pair_searching)
-    var enabled by remember { mutableStateOf(AppPreferences.startShizukuOnBoot(context)) }
-    var authToken by remember { mutableStateOf(AppPreferences.shizukuAutomationToken(context)) }
+    var enabled by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(AppPreferences.startShizukuOnBoot(context)) }
+    var authToken by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(AppPreferences.shizukuAutomationToken(context)) }
     var diagnostic by remember { mutableStateOf(WirelessAdbDiagnostics.passiveSnapshot(context)) }
-    var diagnosticsExpanded by remember { mutableStateOf(false) }
-    var testing by remember { mutableStateOf(false) }
-    var showForgetDialog by remember { mutableStateOf(false) }
+    var diagnosticsExpanded by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var testing by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var showForgetDialog by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    // Debounce token persistence: writing prefs on every keystroke is main-thread I/O.
+    androidx.compose.runtime.LaunchedEffect(authToken) {
+        kotlinx.coroutines.delay(500)
+        AppPreferences.setShizukuAutomationToken(context, authToken)
+    }
 
     if (showForgetDialog) {
         AlertDialog(
@@ -144,7 +150,6 @@ internal fun ShizukuBootSettingsCard() {
                     value = authToken,
                     onValueChange = { value ->
                         authToken = value
-                        AppPreferences.setShizukuAutomationToken(context, value)
                     },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -175,7 +180,9 @@ internal fun ShizukuBootSettingsCard() {
                     } else {
                         Icons.Rounded.ExpandMore
                     },
-                    contentDescription = null,
+                    contentDescription = stringResource(
+                        if (diagnosticsExpanded) R.string.action_collapse else R.string.action_expand
+                    ),
                 )
             }
 
@@ -231,8 +238,13 @@ internal fun ShizukuBootSettingsCard() {
                             if (testing) return@FilledTonalButton
                             testing = true
                             scope.launch {
-                                diagnostic = WirelessAdbDiagnostics.testConnection(context)
-                                testing = false
+                                try {
+                                    diagnostic = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                        WirelessAdbDiagnostics.testConnection(context)
+                                    }
+                                } finally {
+                                    testing = false
+                                }
                             }
                         },
                         enabled = diagnostic.keyPresent && !testing,

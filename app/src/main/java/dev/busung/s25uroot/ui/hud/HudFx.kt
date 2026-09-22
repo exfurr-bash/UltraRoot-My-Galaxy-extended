@@ -32,15 +32,23 @@ import kotlinx.coroutines.delay
 fun Modifier.hudShake(trigger: Any?, intensity: Float = 14f): Modifier {
     var offset by remember { mutableFloatStateOf(0f) }
     var lastTrigger by remember { mutableStateOf<Any?>(null) }
-    LaunchedEffect(trigger) {
+    val reducedMotion = animationsDisabled()
+    LaunchedEffect(trigger, reducedMotion) {
+        if (reducedMotion) {
+            offset = 0f
+            return@LaunchedEffect
+        }
         if (trigger != null && trigger != lastTrigger) {
             lastTrigger = trigger
-            val pattern = listOf(-1f, 0.85f, -0.65f, 0.5f, -0.3f, 0.15f, 0f)
-            for (p in pattern) {
-                offset = p * intensity
-                delay(38)
+            try {
+                val pattern = listOf(-1f, 0.85f, -0.65f, 0.5f, -0.3f, 0.15f, 0f)
+                for (p in pattern) {
+                    offset = p * intensity
+                    delay(38)
+                }
+            } finally {
+                offset = 0f
             }
-            offset = 0f
         }
     }
     return this.graphicsLayer {
@@ -49,24 +57,29 @@ fun Modifier.hudShake(trigger: Any?, intensity: Float = 14f): Modifier {
     }
 }
 
-fun Modifier.hudGlitch(intensity: Float = 0f): Modifier = this
+fun Modifier.hudGlitch(intensity: Float = 0f, seed: Long = 0L): Modifier = this
     .graphicsLayer {
         if (intensity > 0.01f) {
-            translationX = (Math.random().toFloat() - 0.5f) * 14f * intensity
-            rotationX = (Math.random().toFloat() - 0.5f) * 3f * intensity
+            // Deterministic pseudo-random from seed so draws are stable per
+            // frame instead of Math.random() jitter on every recomposition.
+            val r1 = ((seed * 1103515245L + 12345L) ushr 16).toFloat() / 65535f - 0.5f
+            val r2 = ((seed * 22695477L + 1L) ushr 16).toFloat() / 65535f - 0.5f
+            translationX = r1 * 14f * intensity
+            rotationX = r2 * 3f * intensity
         }
     }
     .drawBehind {
         if (intensity > 0.01f) {
             val slices = 3
             repeat(slices) { i ->
-                val y = size.height * (0.15f + 0.3f * i + Math.random().toFloat() * 0.08f)
+                val frac = ((seed + i * 7919L) % 1000L).toFloat() / 1000f
+                val y = size.height * (0.15f + 0.3f * i + frac * 0.08f)
                 drawLine(
                     color = if (i % 2 == 0) HudColors.Blood.copy(alpha = 0.35f * intensity)
                     else HudColors.GlitchCyan.copy(alpha = 0.22f * intensity),
                     start = Offset(0f, y),
                     end = Offset(size.width, y),
-                    strokeWidth = (2f + Math.random().toFloat() * 5f),
+                    strokeWidth = (2f + frac * 5f),
                 )
             }
         }
@@ -97,7 +110,7 @@ fun Modifier.hudAnimatedScanlines(
     enabled: Boolean = true,
     alpha: Float = 0.07f,
 ): Modifier {
-    if (!enabled) return this.hudScanlines(alpha)
+    if (!enabled || animationsDisabled()) return this.hudScanlines(alpha)
     val transition = rememberInfiniteTransition(label = "hud-scan")
     val drift by transition.animateFloat(
         initialValue = 0f,
@@ -132,7 +145,7 @@ fun Modifier.hudAnimatedScanlines(
 /** Blood vignette that pulses while busy. */
 @Composable
 fun Modifier.hudBloodPulse(enabled: Boolean): Modifier {
-    if (!enabled) return this.hudVignette(0.28f)
+    if (!enabled || animationsDisabled()) return this.hudVignette(0.28f)
     val transition = rememberInfiniteTransition(label = "hud-blood")
     val pulse by transition.animateFloat(
         initialValue = 0.22f,

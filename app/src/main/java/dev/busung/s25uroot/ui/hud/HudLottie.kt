@@ -28,20 +28,23 @@ fun BloodBurstLottie(
 ) {
     if (burstKey == null) return
     val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.blood_burst))
+    // Key progress on burstKey so every new burst replays from 0.
     val progress by animateLottieCompositionAsState(
         composition = composition,
         iterations = 1,
-        restartOnPlay = false,
+        restartOnPlay = true,
     )
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        if (composition != null) {
-            LottieAnimation(
-                composition = composition,
-                progress = { progress },
-                modifier = Modifier.size(size),
-            )
-        } else {
-            RitualRing(spinning = true, modifier = Modifier.size(size))
+    androidx.compose.runtime.key(burstKey) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            if (composition != null) {
+                LottieAnimation(
+                    composition = composition,
+                    progress = { progress },
+                    modifier = Modifier.size(size),
+                )
+            } else {
+                RitualRing(spinning = true, modifier = Modifier.size(size))
+            }
         }
     }
 }
