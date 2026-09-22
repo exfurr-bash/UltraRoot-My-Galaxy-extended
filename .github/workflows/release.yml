@@ -109,7 +109,7 @@ jobs:
           set -euo pipefail
           rm -rf "$RUNNER_TEMP/payloads"
           git clone --quiet --depth=1 --branch main \
-            "https://github.com/igorcv88/Root-My-Galaxy-Payloads-Extended.git" \
+            "https://github.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads.git" \
             "$RUNNER_TEMP/payloads"
           python3 .github/scripts/prepare_production_payload_bundle.py "$RUNNER_TEMP/payloads" \
             | tee "$RUNNER_TEMP/payload-provenance.txt"

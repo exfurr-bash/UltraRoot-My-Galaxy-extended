@@ -191,7 +191,7 @@ class PayloadRepository(private val context: Context) {
     companion object {
         private const val OFFLINE_REQUEST_PREFIX = "offline-cache:"
         private const val PRODUCTION_PAYLOAD_REPOSITORY =
-            "igorcv88/Root-My-Galaxy-Payloads-Extended"
+            "exfurr-bash/UltraRoot-My-Galaxy-Payloads"
         private const val PRODUCTION_RAW_PREFIX =
             "https://raw.githubusercontent.com/$PRODUCTION_PAYLOAD_REPOSITORY/main/"
         private const val PRODUCTION_ASSET_ROOT = "production-payloads"

@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-PRODUCTION_PAYLOAD_REPOSITORY = "igorcv88/Root-My-Galaxy-Payloads-Extended"
+PRODUCTION_PAYLOAD_REPOSITORY = "exfurr-bash/UltraRoot-My-Galaxy-Payloads"
 PRODUCTION_PREFIX = (
     f"https://raw.githubusercontent.com/{PRODUCTION_PAYLOAD_REPOSITORY}/main/"
 )

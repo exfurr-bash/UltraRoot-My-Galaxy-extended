@@ -4,8 +4,12 @@
     {
       "payloadId": "pa3q-S938BXXSBCZG3",
       "displayName": "Galaxy S25 Ultra SM-S938B | S938BXXSBCZG3",
-      "models": ["SM-S938B"],
-      "kernelVersions": ["6.6.98"],
+      "models": [
+        "SM-S938B"
+      ],
+      "kernelVersions": [
+        "6.6.98"
+      ],
       "exactMatch": {
         "manufacturer": "samsung",
         "model": "SM-S938B",
@@ -20,17 +24,17 @@
         "pageSize": 4096
       },
       "exploit": {
-        "url": "https://raw.githubusercontent.com/igorcv88/Root-My-Galaxy-Payloads-Extended/main/artifacts/pa3q-S938BXXSBCZG3-v0266/cve-2026-43499-app.so",
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/pa3q-S938BXXSBCZG3-v0266/cve-2026-43499-app.so",
         "size": 104128,
         "sha256": "1719e9362cd19e58521cb785fcaa40c4613ca854d0c3c9fb8320edf8e9046303"
       },
       "kernelsu": {
-        "url": "https://raw.githubusercontent.com/igorcv88/Root-My-Galaxy-Payloads-Extended/main/kernelsu/ksud-s25u-kdp-v3.3.0",
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-s25u-kdp-v3.3.0",
         "size": 5101328,
         "sha256": "9c07ab0f9922cef5a8ef0c7805967d1019bf9e084553bc994e7a42c9347bdab1"
       },
       "rootHelper": {
-        "url": "https://raw.githubusercontent.com/igorcv88/Root-My-Galaxy-Payloads-Extended/main/artifacts/pa3q-S938BXXSBCZG3-v0266/cve-2026-43499-root",
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/pa3q-S938BXXSBCZG3-v0266/cve-2026-43499-root",
         "size": 32888,
         "sha256": "4dd29619caae2b08aa491d7fcfc2e5d0d1ea11d0b6b9d1673d49f7580a40858f"
       },
@@ -46,8 +50,12 @@
     {
       "payloadId": "pa3q-S938BXXUCZZI4",
       "displayName": "Galaxy S25 Ultra SM-S938B | S938BXXUCZZI4",
-      "models": ["SM-S938B"],
-      "kernelVersions": ["6.6.127"],
+      "models": [
+        "SM-S938B"
+      ],
+      "kernelVersions": [
+        "6.6.127"
+      ],
       "exactMatch": {
         "manufacturer": "samsung",
         "model": "SM-S938B",
@@ -62,17 +70,17 @@
         "pageSize": 4096
       },
       "exploit": {
-        "url": "https://raw.githubusercontent.com/igorcv88/Root-My-Galaxy-Payloads-Extended/main/artifacts/pa3q-S938BXXUCZZI4-v0300/cve-2026-43499-app.so",
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/pa3q-S938BXXUCZZI4-v0300/cve-2026-43499-app.so",
         "size": 104128,
         "sha256": "14143d6c5385e4c46bd34dc335772e9d1bcae7f5c102e34a6b142b875395df2b"
       },
       "kernelsu": {
-        "url": "https://raw.githubusercontent.com/igorcv88/Root-My-Galaxy-Payloads-Extended/main/kernelsu/ksud-pa3q-S938BXXUCZZI4-kdp-v3.3.0",
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-pa3q-S938BXXUCZZI4-kdp-v3.3.0",
         "size": 6664656,
         "sha256": "d76b44c984b8d6f7121f712d8aa4e7cf0178ff36a8cd531bddaca9dd2fd361e2"
       },
       "rootHelper": {
-        "url": "https://raw.githubusercontent.com/igorcv88/Root-My-Galaxy-Payloads-Extended/main/artifacts/pa3q-S938BXXUCZZI4-v0300/cve-2026-43499-root",
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/pa3q-S938BXXUCZZI4-v0300/cve-2026-43499-root",
         "size": 32888,
         "sha256": "4dd29619caae2b08aa491d7fcfc2e5d0d1ea11d0b6b9d1673d49f7580a40858f"
       },
@@ -88,8 +96,12 @@
     {
       "payloadId": "pa1q-S931BXXUCZZI4",
       "displayName": "Galaxy S25 SM-S931B | S931BXXUCZZI4",
-      "models": ["SM-S931B"],
-      "kernelVersions": ["6.6.127"],
+      "models": [
+        "SM-S931B"
+      ],
+      "kernelVersions": [
+        "6.6.127"
+      ],
       "exactMatch": {
         "manufacturer": "samsung",
         "model": "SM-S931B",
@@ -104,18 +116,18 @@
         "pageSize": 4096
       },
       "exploit": {
-        "url": "https://raw.githubusercontent.com/igorcv88/Root-My-Galaxy-Payloads-Extended/main/artifacts/pa1q-S931BXXUCZZI4/cve-2026-43499-app.so",
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/pa1q-S931BXXUCZZI4/cve-2026-43499-app.so",
         "size": 104128,
         "sha256": "2f9799912ec6c297d9190bc2b82ff417ff451854a08e9524fa549743470284af"
       },
       "kernelsu": {
-        "url": "https://raw.githubusercontent.com/igorcv88/Root-My-Galaxy-Payloads-Extended/main/kernelsu/ksud-pa1q-S931BXXUCZZI4-kdp",
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-pa1q-S931BXXUCZZI4-kdp",
         "size": 6419120,
         "sha256": "1e1cb6b861d0d4951b7374c12404eee1fb4c02a77240e0500ca571a302396374",
         "kmi": "android15-6.6"
       },
       "rootHelper": {
-        "url": "https://raw.githubusercontent.com/igorcv88/Root-My-Galaxy-Payloads-Extended/main/artifacts/pa3q-S938BXXUCZZI4-v0300/cve-2026-43499-root",
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/pa3q-S938BXXUCZZI4-v0300/cve-2026-43499-root",
         "size": 32888,
         "sha256": "4dd29619caae2b08aa491d7fcfc2e5d0d1ea11d0b6b9d1673d49f7580a40858f"
       },
@@ -131,8 +143,12 @@
     {
       "payloadId": "psq-S937BXXU8CZF1",
       "displayName": "Galaxy S25 Edge SM-S937B | S937BXXU8CZF1",
-      "models": ["SM-S937B"],
-      "kernelVersions": ["6.6.98"],
+      "models": [
+        "SM-S937B"
+      ],
+      "kernelVersions": [
+        "6.6.98"
+      ],
       "exactMatch": {
         "manufacturer": "samsung",
         "model": "SM-S937B",
@@ -147,12 +163,12 @@
         "pageSize": 4096
       },
       "exploit": {
-        "url": "https://raw.githubusercontent.com/igorcv88/Root-My-Galaxy-Payloads-Extended/main/artifacts/pa3q-S938NKSUACZF1/cve-2026-43499-app.so",
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/pa3q-S938NKSUACZF1/cve-2026-43499-app.so",
         "size": 104128,
         "sha256": "6311e5ae1a381fd96b8a989e82525521ed9b00cff4e0d3020d3904eb5716587c"
       },
       "kernelsu": {
-        "url": "https://raw.githubusercontent.com/igorcv88/Root-My-Galaxy-Payloads-Extended/main/kernelsu/ksud-s25u-kdp",
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-s25u-kdp",
         "size": 6407096,
         "sha256": "fa3edcc7d168637394877b30cb1f909d762dda788ec14051f4ae79edd6562d63",
         "kmi": "android15-6.6"
@@ -169,18 +185,575 @@
     {
       "payloadId": "galaxy-s25-series-2026-06-07",
       "displayName": "Galaxy S25 / S25+ SM-S931B, SM-S936B | Kernel 6.6.98",
-      "models": ["SM-S931B", "SM-S936B"],
-      "kernelVersions": ["6.6.98"],
+      "models": [
+        "SM-S931B",
+        "SM-S936B"
+      ],
+      "kernelVersions": [
+        "6.6.98"
+      ],
       "exploit": {
-        "url": "https://raw.githubusercontent.com/igorcv88/Root-My-Galaxy-Payloads-Extended/main/artifacts/pa3q-S938NKSUACZF1/cve-2026-43499-app.so",
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/pa3q-S938NKSUACZF1/cve-2026-43499-app.so",
         "size": 104128,
         "sha256": "6311e5ae1a381fd96b8a989e82525521ed9b00cff4e0d3020d3904eb5716587c"
       },
       "kernelsu": {
-        "url": "https://raw.githubusercontent.com/igorcv88/Root-My-Galaxy-Payloads-Extended/main/kernelsu/ksud-s25u-kdp",
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-s25u-kdp",
         "size": 6407096,
         "sha256": "fa3edcc7d168637394877b30cb1f909d762dda788ec14051f4ae79edd6562d63",
         "kmi": "android15-6.6"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
+    },
+    {
+      "payloadId": "pa2q-S9360ZCSCCZG1",
+      "displayName": "Galaxy S25+ | Kernel 6.6.98",
+      "models": [
+        "SM-S9360"
+      ],
+      "kernelVersions": [
+        "6.6.98"
+      ],
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/pa2q-S9360ZCSCCZG1/cve-2026-43499-app.so",
+        "size": 125904,
+        "sha256": "758dee1f3c1381d0125fa3576f0fd372ddb7a848e14f5a7d68bf11463a643a58"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-s25u-kdp",
+        "size": 6407096,
+        "sha256": "fa3edcc7d168637394877b30cb1f909d762dda788ec14051f4ae79edd6562d63"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
+    },
+    {
+      "payloadId": "psq-S9370ZCS9CZG1",
+      "displayName": "Galaxy S25 Edge | Kernel 6.6.98",
+      "models": [
+        "SM-S9370"
+      ],
+      "kernelVersions": [
+        "6.6.98"
+      ],
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/psq-S9370ZCS9CZG1/cve-2026-43499-app.so",
+        "size": 125264,
+        "sha256": "209d7feb91fc46bfec6f5ebec1f0caca47ee033c9d529e6eaf9c74bc840dd210"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-s25u-kdp",
+        "size": 6407096,
+        "sha256": "fa3edcc7d168637394877b30cb1f909d762dda788ec14051f4ae79edd6562d63"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
+    },
+    {
+      "payloadId": "q7q-F966USQU9BZDN",
+      "displayName": "Galaxy Z Fold 7 | Kernel 6.6.98",
+      "models": [
+        "SM-F966U",
+        "SM-F966U1"
+      ],
+      "kernelVersions": [
+        "6.6.98"
+      ],
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/q7q-F966USQU9BZDN/cve-2026-43499-app.so",
+        "size": 111216,
+        "sha256": "dcb20ca0186ab94e897440e478252361e6999fa20178b2c4e2fcefa6bea4d515"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-s25u-kdp",
+        "size": 6407096,
+        "sha256": "fa3edcc7d168637394877b30cb1f909d762dda788ec14051f4ae79edd6562d63"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
+    },
+    {
+      "payloadId": "q7q-F966USQSBBZG3",
+      "displayName": "Galaxy Z Fold 7 (SM-F966U BZG3) | Kernel 6.6.98",
+      "models": [
+        "SM-F966U"
+      ],
+      "kernelVersions": [
+        "6.6.98"
+      ],
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/q7q-F966USQSBBZG3/cve-2026-43499-app.so",
+        "size": 126264,
+        "sha256": "d809061172eb825a43571eaeb10d8a898d32db6f28a1f2fb90bae6b318a8068f"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-s25u-kdp",
+        "size": 6407096,
+        "sha256": "fa3edcc7d168637394877b30cb1f909d762dda788ec14051f4ae79edd6562d63"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
+    },
+    {
+      "payloadId": "q7q-F966BXXSBBZG3",
+      "displayName": "Galaxy Z Fold 7 (SM-F966B) | Kernel 6.6.98",
+      "models": [
+        "SM-F966B"
+      ],
+      "kernelVersions": [
+        "6.6.98"
+      ],
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/q7q-F966BXXSBBZG3/cve-2026-43499-app.so",
+        "size": 125872,
+        "sha256": "a342474dd5a3b137e645215e4cefb28f2c3ad09601d469a602b1af91b7e7b9a5"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-s25u-kdp",
+        "size": 6407096,
+        "sha256": "fa3edcc7d168637394877b30cb1f909d762dda788ec14051f4ae79edd6562d63"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
+    },
+    {
+      "payloadId": "e3q-S928USQS6DZF2",
+      "displayName": "Galaxy S24 Ultra | Kernel 6.1.145",
+      "models": [
+        "SM-S928U1",
+        "SM-S928W"
+      ],
+      "kernelVersions": [
+        "6.1.145"
+      ],
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/e3q-S928USQS6DZF2/cve-2026-43499-app.so",
+        "size": 104128,
+        "sha256": "b2931d8980f969b5a0cb05bd67f6804f445ad4a4c867a7b4c4081c2ffac5b36a"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-e3q-S928USQS6DZF2-kdp",
+        "size": 4998352,
+        "sha256": "10c1bf87f8e475e6ab8c5d1c5a085aa1544ee091f4451ad65141ea75261ab610"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
+    },
+    {
+      "payloadId": "e3q-S928BXXS6DZF2",
+      "displayName": "Galaxy S24 Ultra (International) | Kernel 6.1.145",
+      "models": [
+        "SM-S928B"
+      ],
+      "kernelVersions": [
+        "6.1.145"
+      ],
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/e3q-S928BXXS6DZF2/cve-2026-43499-app.so",
+        "size": 104128,
+        "sha256": "a49b378d654c7e637697a701c3c4c5fd02d22b9b30a7069c03e64ec5844af206"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-e3q-S928BXXS6DZF2-kdp",
+        "size": 4748232,
+        "sha256": "43f451313dc111429187f8f93e76c57c42976323782aac936c1c09aa309b76b3"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
+    },
+    {
+      "payloadId": "e2s-S926BXXUEDZDR",
+      "displayName": "Galaxy S24+ | Kernel 6.1.157",
+      "models": [
+        "SM-S926B"
+      ],
+      "kernelVersions": [
+        "6.1.157"
+      ],
+      "requiresFreshP0Session": true,
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/e2s-S926BXXUEDZDR/cve-2026-43499-app.so",
+        "size": 104128,
+        "sha256": "b1fe6dcc2e4d5cbfc13679f2086835c0a2ab2be5624f122b23b0c30954670552"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-e2s-S926BXXUEDZDR-kdp",
+        "size": 4780056,
+        "sha256": "dc3eb02640492a8d6f78f8515c6ae5c75ddbfa593f53cd0f3efdfc82a29c4219"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
+    },
+    {
+      "payloadId": "e1s-S921BXXSFDZE1",
+      "displayName": "Galaxy S24 | Kernel 6.1.157",
+      "models": [
+        "SM-S921B"
+      ],
+      "kernelVersions": [
+        "6.1.157"
+      ],
+      "requiresFreshP0Session": true,
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/e1s-S921BXXSFDZE1/cve-2026-43499-app.so",
+        "size": 104128,
+        "sha256": "cde4e9ca1f235f11940513c897de23c97f89f70c7ef0104d071ff1acbbcf1776"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-e1s-S921BXXSFDZE1-kdp",
+        "size": 4920520,
+        "sha256": "614fc59233d81d3b038c5450501c5a89775bef1305295e8151b605b0bf298ba0"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
+    },
+    {
+      "payloadId": "essi-A566EXXSCCZG6",
+      "displayName": "Galaxy A56 5G | Kernel 6.6.102",
+      "models": [
+        "SM-A5660",
+        "SM-A566B",
+        "SM-A566E",
+        "SM-A566S",
+        "SM-A566U1",
+        "SM-A566W"
+      ],
+      "kernelVersions": [
+        "6.6.102"
+      ],
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/essi-A566EXXSCCZG6/cve-2026-43499-app.so",
+        "size": 104128,
+        "sha256": "f28050c5f291386ec539aac668b218d88ab8df43ec159978b2a7b71a329b0bd5"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-A566EXXSCCZG6-kdp",
+        "size": 4765336,
+        "sha256": "9fd53d55ec85ec600b88cc0f66af1a094381feb6bea64b5422b3aa706aab08c8"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
+    },
+    {
+      "payloadId": "a36xq-A366WVLS3AYG1",
+      "displayName": "Galaxy A36 5G | Kernel 6.6.46",
+      "models": [
+        "SM-A366W"
+      ],
+      "kernelVersions": [
+        "6.6.46"
+      ],
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/a36xq-A366WVLS3AYG1/cve-2026-43499-app.so",
+        "size": 128688,
+        "sha256": "481e3425d5038b7b51820d626783d5b1afb50c3358075582f14c94e5d7b52eec"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-A366WVLS3AYG1-kdp",
+        "size": 4889120,
+        "sha256": "2288f5f061f9dc9b27f6a3409ab68592c2050f78306dad09348f2363d5380b42"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
+    },
+    {
+      "payloadId": "dm3q-S918BXXSAFZF5",
+      "displayName": "Galaxy S23 Ultra SM-S918B | Kernel 5.15.189 (S918BXXSAFZF5)",
+      "models": [
+        "SM-S918B"
+      ],
+      "kernelVersions": [
+        "5.15.189"
+      ],
+      "requiresFreshP0Session": true,
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/dm3q-S918BXXSAFZF5/cve-2026-43499-app.so",
+        "size": 133344,
+        "sha256": "3bf7edcbab642c346ac0cb5564ef7406b835eb555b1163ebd498a9860dc6c83f"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-dm3q-S918BXXSAFZF5-kdp",
+        "size": 4879560,
+        "sha256": "5da5818d36da2d589496f91016078a43f50489e5c98b319db4eaa5ee475b86bd"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
+    },
+    {
+      "payloadId": "a53x-A536EXXSNGZG3",
+      "displayName": "Galaxy A53 5G | Kernel 5.10.237",
+      "models": [
+        "SM-A536E"
+      ],
+      "kernelVersions": [
+        "5.10.237"
+      ],
+      "requiresFreshP0Session": true,
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/a53x-A536EXXSNGZG3/cve-2026-43499-app.so",
+        "size": 104128,
+        "sha256": "fb9b2e08adb8046f3ae0566cc0b10ae55c5bb72b0d04396a935141e242060fdf"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-A536EXXSNGZG3-kdp",
+        "size": 4870752,
+        "sha256": "c35130bf54f7b8e3c31eee2349c7e053d1e2878b4d47b21090012523ff02e3ef"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
+    },
+    {
+      "payloadId": "dm3q-S9180ZHS8FZF5",
+      "displayName": "Galaxy S23 Ultra | Kernel 5.15.189",
+      "models": [
+        "SM-S9180",
+        "SM-S918N",
+        "SM-S918Q",
+        "SM-S918U",
+        "SM-S918W",
+        "SM-S918U1"
+      ],
+      "kernelVersions": [
+        "5.15.189"
+      ],
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/dm3q-S9180ZHS8FZF5/cve-2026-43499-app.so",
+        "size": 137728,
+        "sha256": "55586f8e13e2ef57b33a94a8d36f33d6f01f2881310b1fbe5e764bb06ba78bb2"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-dm3q-S9180ZHS8FZF5-kdp",
+        "size": 4556352,
+        "sha256": "077797b6cd07621b4352a55bbcfb03cb86a33f0fb044aeb4706445a21215eb57"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
+    },
+    {
+      "payloadId": "e1s-S921NKSSFDZF3",
+      "displayName": "Galaxy S24 | Kernel 6.1.157",
+      "models": [
+        "SM-S921N"
+      ],
+      "kernelVersions": [
+        "6.1.157"
+      ],
+      "requiresFreshP0Session": true,
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/e1s-S921NKSSFDZF3/cve-2026-43499-app.so",
+        "size": 104128,
+        "sha256": "1256ab0c500cb44ed46bf79dcf7331bf8e23fe1b047dd980e6048a3ae01a4245"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-e1s-S921NKSSFDZF3-kdp",
+        "size": 4758872,
+        "sha256": "063586e2625af622bf7de847cb6e1cd492ab78e84f655340d356e8db4798121a"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
+    },
+    {
+      "payloadId": "dm1q-S911U1UES6DYI3",
+      "displayName": "Galaxy S23 (base) | Kernel 5.15.153 | tracefs/MCAST route",
+      "models": [
+        "SM-S911U1"
+      ],
+      "kernelVersions": [
+        "5.15.153"
+      ],
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/dm1q-S911U1UES6DYI3/cve-2026-43499-app.so",
+        "size": 130168,
+        "sha256": "cc103692427c0ce7fb2a637ad6505ef1739c7036132b221cecf8d1b9a2328dca"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-dm1q-S911U1UES6DYI3-kdp",
+        "size": 4758792,
+        "sha256": "9f1ea78f0a00868f09a00544c68d93fda21581cb3962fa49f9ded8031c9e809a"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
+    },
+    {
+      "payloadId": "r12s-S721BXXSCDZF3",
+      "displayName": "Galaxy S24 FE | Kernel 6.1.157",
+      "models": [
+        "SM-S721B"
+      ],
+      "kernelVersions": [
+        "6.1.157"
+      ],
+      "requiresFreshP0Session": true,
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/r12s-S721BXXSCDZF3/cve-2026-43499-app.so",
+        "size": 104128,
+        "sha256": "e493e64f9ebc8c64297a0cf1be3c6b2b82a3d39713d14049b5719b7a8d18111d"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-r12s-S721BXXSCDZF3-kdp",
+        "size": 6419768,
+        "sha256": "f37971d1673609b44c59de1240b59a72f3ba6cbe32e9b0873c8398a945a9e97b"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
+    },
+    {
+      "payloadId": "gts9-X710XXS6EZF1",
+      "displayName": "Galaxy Tab S9 SM-X710 | Kernel 5.15.189 (X710XXS6EZF1)",
+      "models": [
+        "SM-X710"
+      ],
+      "kernelVersions": [
+        "5.15.189"
+      ],
+      "requiresFreshP0Session": true,
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/gts9-X710XXS6EZF1/cve-2026-43499-app.so",
+        "size": 132688,
+        "sha256": "caad8a8e65219c16d25af2091625c20fb96e721a39cda04f4f92c87f23bf9543"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-gts9-X710XXS6EZF1-kdp",
+        "size": 4783256,
+        "sha256": "641e770ca1b0eb6a2e7bca837e65ed7db5483a9b9b4c68c3f1410dac20fc4dd8"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
+    },
+    {
+      "payloadId": "e3q-S9280ZCS6DZF2",
+      "displayName": "Galaxy S24 Ultra China | Kernel 6.1.145 (S9280ZCS6DZF2)",
+      "models": [
+        "SM-S9280"
+      ],
+      "kernelVersions": [
+        "6.1.145"
+      ],
+      "requiresFreshP0Session": true,
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/e3q-S9280ZCS6DZF2/cve-2026-43499-app.so",
+        "size": 104128,
+        "sha256": "e9baa068843b372cf5d1a7131902f58af25931327957df7b39df3b655e89c9bc"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-e3q-S9280ZCS6DZF2-kdp",
+        "size": 4879856,
+        "sha256": "1b92611de62035263f129636270deb9002de42e1d2329460342856243975015b"
       },
       "routePolicy": {
         "slideRoute": "default",
