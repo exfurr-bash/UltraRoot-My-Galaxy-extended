@@ -791,6 +791,19 @@
         "p0AttemptTimeoutSec": 45,
         "p0OffsetCache": true,
         "prefersShellTransport": false
+      },
+      "exactMatch": {
+        "manufacturer": "samsung",
+        "model": "SM-A556E",
+        "device": "a55x",
+        "buildDisplay": "BP4A.251205.006.A556EXXSGDZG2",
+        "buildFingerprint": "samsung/a55xnsxx/a55x:16/BP4A.251205.006/A556EXXSGDZG2:user/release-keys",
+        "kernelRelease": "6.1.157-android14-11",
+        "kernelVersionInfo": "#1 SMP PREEMPT Fri Jul  3 09:06:14 UTC 2026",
+        "machine": "aarch64",
+        "sdk": 36,
+        "abi": "arm64-v8a",
+        "pageSize": 4096
       }
     }
   ]
