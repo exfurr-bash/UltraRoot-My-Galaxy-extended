@@ -66,28 +66,30 @@ object ShizukuController {
         false
     }
 
-    suspend fun requestPermission(): Boolean {
+    suspend fun requestPermission(timeoutMillis: Long = 60_000): Boolean {
         if (isGranted()) return true
         if (!isRunning()) return false
-        return suspendCancellableCoroutine { continuation ->
-            lateinit var listener: Shizuku.OnRequestPermissionResultListener
-            listener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
-                if (requestCode == PERMISSION_REQUEST_CODE) {
+        return withTimeoutOrNull(timeoutMillis) {
+            suspendCancellableCoroutine { continuation ->
+                lateinit var listener: Shizuku.OnRequestPermissionResultListener
+                listener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
+                    if (requestCode == PERMISSION_REQUEST_CODE) {
+                        Shizuku.removeRequestPermissionResultListener(listener)
+                        continuation.resume(grantResult == PackageManager.PERMISSION_GRANTED)
+                    }
+                }
+                Shizuku.addRequestPermissionResultListener(listener)
+                continuation.invokeOnCancellation {
                     Shizuku.removeRequestPermissionResultListener(listener)
-                    continuation.resume(grantResult == PackageManager.PERMISSION_GRANTED)
+                }
+                try {
+                    Shizuku.requestPermission(PERMISSION_REQUEST_CODE)
+                } catch (error: Throwable) {
+                    Shizuku.removeRequestPermissionResultListener(listener)
+                    continuation.resumeWithException(error)
                 }
             }
-            Shizuku.addRequestPermissionResultListener(listener)
-            continuation.invokeOnCancellation {
-                Shizuku.removeRequestPermissionResultListener(listener)
-            }
-            try {
-                Shizuku.requestPermission(PERMISSION_REQUEST_CODE)
-            } catch (error: Throwable) {
-                Shizuku.removeRequestPermissionResultListener(listener)
-                continuation.resumeWithException(error)
-            }
-        }
+        } ?: false
     }
 
     fun exec(cmd: Array<String>, env: Array<String>? = null, dir: String? = null): Process {
@@ -129,7 +131,11 @@ object ShizukuController {
     }
 
     fun writeFile(remotePath: String, mode: String, source: InputStream) {
-        val process = exec(arrayOf("sh", "-c", "cat > '$remotePath' && chmod $mode '$remotePath'"))
+        require(remotePath.startsWith("/data/local/tmp/")) { "Refusing to stage outside /data/local/tmp: $remotePath" }
+        require(remotePath.matches(Regex("[A-Za-z0-9._/\\-]+"))) { "Unsafe remote path: $remotePath" }
+        require(mode.matches(Regex("[0-7]{3,4}"))) { "Unsafe mode: $mode" }
+        val quoted = "'${remotePath.replace("'", "'\\''")}'"
+        val process = exec(arrayOf("sh", "-c", "cat > $quoted && chmod $mode $quoted"))
         val exitCode = try {
             process.outputStream.use { output ->
                 source.use { input -> input.copyTo(output, DEFAULT_BUFFER_SIZE) }

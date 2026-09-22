@@ -26,7 +26,7 @@ class WirelessAdbSession private constructor(
     fun push(localFile: File, remotePath: String, executable: Boolean = false) {
         client.push(localFile, remotePath)
         if (executable) {
-            val chmod = client.shell("chmod 755 '$remotePath'")
+            val chmod = client.shell("chmod 755 ${shellQuote(remotePath)}")
             check(chmod.exitCode == 0) { "chmod 755 $remotePath failed: ${chmod.output}" }
         }
         Log.d(TAG, "pushed ${localFile.name} -> $remotePath")
@@ -94,12 +94,14 @@ class WirelessAdbSession private constructor(
 
     /** Removes a remote file, ignoring errors. */
     fun remove(remotePath: String) {
-        client.shell("rm -f '$remotePath'")
+        client.shell("rm -f ${shellQuote(remotePath)}")
     }
 
     /** Reads the current contents of a remote file (empty string if missing). */
     fun readLog(remotePath: String): String =
-        client.shell("cat '$remotePath' 2>/dev/null").output
+        client.shell("cat ${shellQuote(remotePath)} 2>/dev/null").output
+
+    private fun shellQuote(value: String) = "'${value.replace("'", "'\\''")}'"
 
     override fun close() {
         runCatching { client.close() }

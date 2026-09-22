@@ -17,6 +17,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.net.ConnectException
 
@@ -36,6 +37,8 @@ class AdbPairingService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var adbMdns: AdbMdns? = null
     private var started = false
+    private var pairingJob: kotlinx.coroutines.Job? = null
+    @Volatile private var activePort: Int = -1
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -56,19 +59,24 @@ class AdbPairingService : Service() {
                 val port = intent.getIntExtra(EXTRA_PORT, -1)
                 if (port != -1 && code.isNotBlank()) {
                     startForegroundCompat(workingNotification())
+                    activePort = port
                     onInput(code, port)
                 } else {
                     startSearch()
                 }
             }
             ACTION_STOP -> {
+                pairingJob?.cancel()
+                pairingJob = null
                 stopSearch()
                 TemporaryWirelessAdb.forceDisable(this)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
         }
-        return START_REDELIVER_INTENT
+        // Single-use pairing codes must not be retried by the system after
+        // process death; a redelivered intent would replay a stale code/port.
+        return START_NOT_STICKY
     }
 
     private fun startSearch() {
@@ -91,7 +99,8 @@ class AdbPairingService : Service() {
 
     private fun onInput(code: String, port: Int) {
         Log.i(TAG, "onInput: code=${code.length} chars, port=$port")
-        scope.launch {
+        pairingJob?.cancel()
+        pairingJob = scope.launch {
             val keyManager = try {
                 Log.d(TAG, "Creating AdbKeyManager")
                 AdbKeyManager(this@AdbPairingService)
@@ -100,16 +109,25 @@ class AdbPairingService : Service() {
                 handleResult(false, e)
                 return@launch
             }
+            var client: AdbPairingClient? = null
             try {
                 Log.i(TAG, "Starting AdbPairingClient to 127.0.0.1:$port")
-                val success = AdbPairingClient("127.0.0.1", port, code, keyManager).use {
-                    it.start()
-                }
+                // Pairing codes are single-use; abort if a newer request arrived
+                // or the service was stopped while blocking in TLS/SPAKE2 I/O.
+                if (activePort != port || !isActive) return@launch
+                client = AdbPairingClient("127.0.0.1", port, code, keyManager)
+                val success = kotlinx.coroutines.withTimeoutOrNull(60_000) {
+                    client.start()
+                } ?: false
+                if (!isActive || activePort != port) return@launch
                 Log.i(TAG, "Pairing result: $success")
                 handleResult(success, null)
             } catch (e: Throwable) {
+                if (!isActive) return@launch
                 Log.e(TAG, "Pairing exception", e)
                 handleResult(false, e)
+            } finally {
+                runCatching { client?.close() }
             }
         }
     }
@@ -129,7 +147,7 @@ class AdbPairingService : Service() {
             title = getString(R.string.adb_pair_success_title)
             text = getString(R.string.adb_pair_success_text)
 
-            if (NativeProbe.isKernelSuActive() && AppPreferences.autoStartShizukuAfterRoot(this)) {
+            if (NativeProbe.isKernelSuActiveSafe() && AppPreferences.autoStartShizukuAfterRoot(this)) {
                 val postRoot = runCatching {
                     PostRootAutomation.run(
                         context = this@AdbPairingService,
@@ -237,6 +255,8 @@ class AdbPairingService : Service() {
     }
 
     override fun onDestroy() {
+        pairingJob?.cancel()
+        pairingJob = null
         stopSearch()
         TemporaryWirelessAdb.forceDisable(this)
         scope.cancel()

@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission
         android:name="android.permission.WRITE_SECURE_SETTINGS"
@@ -27,7 +28,8 @@
         android:localeConfig="@xml/locales_config"
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
-        android:theme="@style/Theme.S25URoot">
+        android:theme="@style/Theme.S25URoot"
+        android:usesCleartextTraffic="false">
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -56,10 +58,20 @@
         <service
             android:name=".AutoRootExecutorService"
             android:exported="false"
-            android:process=":autoroot_exec" />
+            android:foregroundServiceType="specialUse"
+            android:process=":autoroot_exec">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="@string/autoroot_fgs_subtype" />
+        </service>
         <service
             android:name=".AutoRootShellExecutorService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="@string/autoroot_fgs_subtype" />
+        </service>
         <service
             android:name=".ShizukuBootService"
             android:enabled="true"
@@ -67,7 +79,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Early local Wireless ADB bootstrap for Shizuku after boot" />
+                android:value="@string/shizuku_boot_description" />
         </service>
         <service
             android:name=".AdbPairingService"
@@ -76,7 +88,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Wireless ADB pairing for post-root local automation" />
+                android:value="@string/adb_pair_service_found" />
         </service>
         <receiver
             android:name=".AutoRootBootReceiver"

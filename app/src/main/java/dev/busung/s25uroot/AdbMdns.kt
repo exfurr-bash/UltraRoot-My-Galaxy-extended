@@ -4,10 +4,7 @@ import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.util.Log
-import java.io.IOException
-import java.net.InetSocketAddress
 import java.net.NetworkInterface
-import java.net.ServerSocket
 
 /**
  * Discovers the wireless-debugging pairing/connect service via mDNS.
@@ -75,20 +72,27 @@ class AdbMdns(
     }
 
     private fun isLocalAddress(info: NsdServiceInfo): Boolean = try {
+        val host = info.host ?: return false
+        // Accept loopback explicitly (emulator/adbd on 127.0.0.1) plus any
+        // address owned by a local interface; compare raw bytes to tolerate
+        // IPv6 zone-id / string formatting differences.
+        if (host.isLoopbackAddress) return true
+        val target = host.address
         NetworkInterface.getNetworkInterfaces().asSequence().any { ni ->
-            ni.inetAddresses.asSequence().any { it.hostAddress == info.host.hostAddress }
+            ni.inetAddresses.asSequence().any { local ->
+                local.address.contentEquals(target)
+            }
         }
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         false
     }
 
-    private fun isPortAvailable(port: Int): Boolean = try {
-        ServerSocket().use {
-            it.bind(InetSocketAddress("127.0.0.1", port), 1)
-            false
-        }
-    } catch (e: IOException) {
-        true
+    private fun isPortAvailable(port: Int): Boolean {
+        // Port comes from adbd's own mDNS announcement: validity is range +
+        // reachability, not a bind-probe (bind-then-connect races with adbd
+        // restarts). The connect step in WirelessAdbSession.open is authoritative.
+        if (port <= 0 || port > 65535) return false
+        return true
     }
 
     companion object {

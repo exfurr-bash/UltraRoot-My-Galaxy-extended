@@ -22,7 +22,15 @@ data class DeviceSnapshot(
         get() = kernelVersionInfo
 
     val kernelVersion: String
-        get() = kernelRelease.takeWhile { it.isDigit() || it == '.' }
+        get() {
+            // "6.6.98-android15-8-..." -> "6.6.98". Tolerate leading 'v',
+            // trailing dots and empty releases instead of returning "" or "6.6.".
+            val cleaned = kernelRelease.trim().removePrefix("v").removePrefix("V")
+            val dotted = cleaned.takeWhile { it.isDigit() || it == '.' }.trimEnd('.')
+            if (dotted.isBlank()) return ""
+            // Collapse accidental ".." and drop empty segments.
+            return dotted.split('.').filter(String::isNotEmpty).joinToString(".")
+        }
 
     val kernelVersionFull: String
         get() = listOf(kernelRelease, kernelVersionInfo, machine)

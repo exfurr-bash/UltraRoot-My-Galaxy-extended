@@ -44,8 +44,16 @@ class AdbKeyManager(context: Context) {
     val sslContext: SSLContext
 
     init {
-        keyDir.mkdirs()
+        if (!keyDir.isDirectory) {
+            require(keyDir.mkdirs() || keyDir.isDirectory) { "Unable to create ADB key directory" }
+        }
+        // Private app storage is already UID-scoped; enforce owner-only perms.
+        runCatching { android.system.Os.chmod(keyDir.absolutePath, 448) } // 0700
         keyPair = loadOrGenerate()
+        runCatching {
+            android.system.Os.chmod(java.io.File(keyDir, "adb_private.der").absolutePath, 384) // 0600
+            android.system.Os.chmod(java.io.File(keyDir, "adb_public.der").absolutePath, 384)
+        }
         val publicKey = keyPair.public as RSAPublicKey
         adbPublicKey = encodeAdbPublicKey(publicKey, "rootmygalaxy@localhost")
         sslContext = buildSslContext()

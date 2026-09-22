@@ -75,7 +75,9 @@ class AdbPairingClient(
 
     private fun setupTlsConnection() {
         Log.d(TAG, "Connecting to $host:$port")
-        socket = Socket(host, port)
+        socket = Socket()
+        socket.connect(java.net.InetSocketAddress(host, port), PAIRING_CONNECT_TIMEOUT_MS)
+        socket.soTimeout = PAIRING_READ_TIMEOUT_MS
         socket.tcpNoDelay = true
 
         // BouncyCastle TLS 1.3 client — no hidden API issues
@@ -252,6 +254,8 @@ class AdbPairingClient(
     companion object {
         private const val PAIRING_TYPE_SPAKE2: Byte = 0
         private const val PAIRING_TYPE_PEER_INFO: Byte = 1
+        private const val PAIRING_CONNECT_TIMEOUT_MS = 10_000
+        private const val PAIRING_READ_TIMEOUT_MS = 30_000
     }
 }
 

@@ -31,11 +31,18 @@ static void append_probe(char *output, size_t output_size, const char *name,
 }
 
 static int read_line(const char *path, char *output, size_t output_size) {
+  if (path == NULL || output == NULL || output_size == 0) {
+    return 0;
+  }
   int fd = open(path, O_RDONLY | O_CLOEXEC);
   if (fd < 0) {
     return 0;
   }
-  ssize_t count = read(fd, output, output_size - 1);
+  ssize_t count = 0;
+  // Retry on EINTR; /proc files normally return in one shot.
+  do {
+    count = read(fd, output, output_size - 1);
+  } while (count < 0 && errno == EINTR);
   close(fd);
   if (count <= 0) {
     return 0;
@@ -69,7 +76,11 @@ static uint64_t measure_syscall_register(uintptr_t address) {
   uint64_t started = read_virtual_counter();
   for (int i = 0; i < 32; ++i) {
     x0 = address;
-    __asm__ volatile("svc #0" : "+r"(x0) : "r"(x8) : "memory", "cc");
+    __asm__ volatile("svc #0"
+                     : "+r"(x0)
+                     : "r"(x8)
+                     : "memory", "cc", "x1", "x2", "x3", "x4", "x5", "x9",
+                       "x10", "x11", "x12", "x13", "x14", "x15");
   }
   __asm__ volatile("isb" ::: "memory");
   return read_virtual_counter() - started;
@@ -121,7 +132,10 @@ Java_dev_busung_s25uroot_NativeProbe_run(JNIEnv *env, jobject thiz) {
   char context[256] = "unknown";
   int context_fd = open("/proc/self/attr/current", O_RDONLY | O_CLOEXEC);
   if (context_fd >= 0) {
-    ssize_t count = read(context_fd, context, sizeof(context) - 1);
+    ssize_t count = 0;
+    do {
+      count = read(context_fd, context, sizeof(context) - 1);
+    } while (count < 0 && errno == EINTR);
     close(context_fd);
     if (count > 0) {
       context[count] = '\0';
@@ -129,10 +143,14 @@ Java_dev_busung_s25uroot_NativeProbe_run(JNIEnv *env, jobject thiz) {
     }
   }
 
+  long initial_page_size = sysconf(_SC_PAGESIZE);
+  if (initial_page_size <= 0) {
+    initial_page_size = 4096;
+  }
   snprintf(output, sizeof(output),
            "uid=%u euid=%u gid=%u egid=%u\ncontext=%s\npage_size=%ld\n",
            getuid(), geteuid(), getgid(), getegid(), context,
-           sysconf(_SC_PAGESIZE));
+           initial_page_size);
   append_probe(output, sizeof(output), "tracefs_control",
                "/sys/kernel/tracing/tracing_on", O_RDWR);
   append_probe(output, sizeof(output), "tracefs_event",
@@ -197,22 +215,34 @@ Java_dev_busung_s25uroot_NativeProbe_run(JNIEnv *env, jobject thiz) {
              bpf_fd >= 0 ? "ok" : "denied", bpf_errno);
   }
 
-  int tee_source[2];
-  int tee_target[2];
+  int tee_source[2] = {-1, -1};
+  int tee_target[2] = {-1, -1};
   int tee_result = -1;
   int tee_errno = 0;
-  if (pipe(tee_source) == 0 && pipe(tee_target) == 0) {
-    char marker = 'T';
-    if (write(tee_source[1], &marker, sizeof(marker)) == sizeof(marker)) {
-      errno = 0;
-      tee_result = (int)syscall(SYS_tee, tee_source[0], tee_target[1],
-                                sizeof(marker), 0);
+  if (pipe(tee_source) == 0) {
+    if (pipe(tee_target) == 0) {
+      char marker = 'T';
+      ssize_t written = 0;
+      do {
+        written = write(tee_source[1], &marker, sizeof(marker));
+      } while (written < 0 && errno == EINTR);
+      if (written == sizeof(marker)) {
+        errno = 0;
+        tee_result = (int)syscall(SYS_tee, tee_source[0], tee_target[1],
+                                  sizeof(marker), 0);
+        tee_errno = errno;
+      } else {
+        tee_errno = errno;
+      }
+      close(tee_target[0]);
+      close(tee_target[1]);
+    } else {
       tee_errno = errno;
     }
     close(tee_source[0]);
     close(tee_source[1]);
-    close(tee_target[0]);
-    close(tee_target[1]);
+  } else {
+    tee_errno = errno;
   }
   size_t tee_used = strlen(output);
   if (tee_used < sizeof(output)) {
@@ -221,6 +251,9 @@ Java_dev_busung_s25uroot_NativeProbe_run(JNIEnv *env, jobject thiz) {
   }
 
   long page_size = sysconf(_SC_PAGESIZE);
+  if (page_size <= 0) {
+    page_size = 4096;
+  }
   unsigned char *page = mmap(NULL, (size_t)page_size, PROT_READ | PROT_WRITE,
                              MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (page != MAP_FAILED) {
@@ -228,10 +261,19 @@ Java_dev_busung_s25uroot_NativeProbe_run(JNIEnv *env, jobject thiz) {
     int pagemap_fd = open("/proc/self/pagemap", O_RDONLY | O_CLOEXEC);
     uint64_t entry = 0;
     ssize_t count = -1;
-    if (pagemap_fd >= 0) {
-      off_t offset = (off_t)(((uintptr_t)page / (uintptr_t)page_size) * 8);
-      count = pread(pagemap_fd, &entry, sizeof(entry), offset);
+    int pagemap_errno = 0;
+    if (pagemap_fd >= 0 && page_size > 0) {
+      // Overflow-safe: addresses are < 2^48, page_size >= 1.
+      uintptr_t page_index = (uintptr_t)page / (uintptr_t)page_size;
+      off_t offset = (off_t)(page_index * 8);
+      errno = 0;
+      do {
+        count = pread(pagemap_fd, &entry, sizeof(entry), offset);
+      } while (count < 0 && errno == EINTR);
+      pagemap_errno = errno;
       close(pagemap_fd);
+    } else if (pagemap_fd < 0) {
+      pagemap_errno = errno;
     }
     size_t used = strlen(output);
     if (used < sizeof(output)) {
@@ -239,7 +281,7 @@ Java_dev_busung_s25uroot_NativeProbe_run(JNIEnv *env, jobject thiz) {
                "pagemap=%s read=%zd present=%llu pfn=%llx errno=%d\n",
                pagemap_fd >= 0 ? "ok" : "denied", count,
                (unsigned long long)((entry >> 63) & 1),
-               (unsigned long long)(entry & ((1ULL << 55) - 1)), errno);
+               (unsigned long long)(entry & ((1ULL << 55) - 1)), pagemap_errno);
     }
     munmap(page, (size_t)page_size);
   }
@@ -248,7 +290,12 @@ Java_dev_busung_s25uroot_NativeProbe_run(JNIEnv *env, jobject thiz) {
   append_kaslr_timing_probe(output, sizeof(output));
 #endif
 
-  return (*env)->NewStringUTF(env, output);
+  jstring result = (*env)->NewStringUTF(env, output);
+  if (result == NULL) {
+    // OOM: pending OutOfMemoryError, propagate null to Java.
+    return NULL;
+  }
+  return result;
 }
 
 JNIEXPORT jboolean JNICALL
@@ -266,23 +313,38 @@ Java_dev_busung_s25uroot_NativeProbe_isKernelSuActive(JNIEnv *env,
     return JNI_FALSE;
   }
 
-  char modules[65536];
-  ssize_t count = read(fd, modules, sizeof(modules) - 1);
-  close(fd);
-  if (count <= 0) {
+  // 64KB on the JNI thread stack risks overflow (typical 1MB stack); use heap.
+  char *modules = (char *)malloc(65536);
+  if (modules == NULL) {
+    close(fd);
     return JNI_FALSE;
   }
-  modules[count] = '\0';
+  ssize_t total = 0;
+  ssize_t count = 0;
+  do {
+    count = read(fd, modules + total, 65536 - 1 - (size_t)total);
+    if (count > 0) total += count;
+  } while ((count > 0 && (size_t)total < 65535) || (count < 0 && errno == EINTR));
+  close(fd);
+  if (total <= 0) {
+    free(modules);
+    return JNI_FALSE;
+  }
+  modules[total] = '\0';
 
   const char *line = modules;
+  jboolean found = JNI_FALSE;
   while (line != NULL && *line != '\0') {
-    if (strncmp(line, "kernelsu ", sizeof("kernelsu ") - 1) == 0) {
-      return JNI_TRUE;
+    if (strncmp(line, "kernelsu ", sizeof("kernelsu ") - 1) == 0 ||
+        strncmp(line, "kernelsu\t", sizeof("kernelsu\t") - 1) == 0) {
+      found = JNI_TRUE;
+      break;
     }
     line = strchr(line, '\n');
     if (line != NULL) {
       ++line;
     }
   }
-  return JNI_FALSE;
+  free(modules);
+  return found;
 }

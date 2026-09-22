@@ -101,7 +101,7 @@ class PayloadRepository(private val context: Context) {
         }
 
         val actualSha256 = sha256(helper)
-        require(actualSha256 == expected.sha256) {
+        require(actualSha256.equals(expected.sha256, ignoreCase = true)) {
             "Bundled root helper SHA-256 mismatch in Root My Galaxy ${BuildConfig.VERSION_NAME}: " +
                 "expected=${expected.sha256} actual=$actualSha256. Update/rebuild the app before running this payload."
         }
@@ -139,7 +139,7 @@ class PayloadRepository(private val context: Context) {
             }
             require(total == artifact.size) { context.getString(R.string.repo_incomplete, label) }
             val actualSha256 = digest.digest().joinToString("") { "%02x".format(it) }
-            require(actualSha256 == artifact.sha256) {
+            require(actualSha256.equals(artifact.sha256, ignoreCase = true)) {
                 "$label SHA-256 does not match the bundled production manifest"
             }
             if (destination.exists()) destination.delete()

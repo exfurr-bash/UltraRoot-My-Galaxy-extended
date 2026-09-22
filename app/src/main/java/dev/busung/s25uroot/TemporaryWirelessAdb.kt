@@ -56,17 +56,24 @@ internal object TemporaryWirelessAdb {
     suspend fun <T> use(
         context: Context,
         settleMillis: Long = 1_000L,
+        timeoutMillis: Long = 20 * 60 * 1_000L,
         onLog: (String) -> Unit = {},
         block: suspend () -> T,
-    ): T = sessionMutex.withLock {
-        check(begin(context, onLog)) {
-            "Unable to enable Wireless Debugging; WRITE_SECURE_SETTINGS is required"
-        }
-        try {
-            if (settleMillis > 0) delay(settleMillis)
-            block()
-        } finally {
-            scheduleGraceDisable(context, onLog)
+    ): T {
+        // Bound the mutex hold so a hung 15-min exploit stream cannot wedge
+        // ShizukuBootService/diagnostics forever; callers get TimeoutCancellationException.
+        return kotlinx.coroutines.withTimeout(timeoutMillis) {
+            sessionMutex.withLock {
+                check(begin(context, onLog)) {
+                    "Unable to enable Wireless Debugging; WRITE_SECURE_SETTINGS is required"
+                }
+                try {
+                    if (settleMillis > 0) delay(settleMillis)
+                    block()
+                } finally {
+                    scheduleGraceDisable(context, onLog)
+                }
+            }
         }
     }
 

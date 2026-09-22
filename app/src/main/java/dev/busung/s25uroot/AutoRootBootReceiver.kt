@@ -84,7 +84,7 @@ class AutoRootActionReceiver : BroadcastReceiver() {
 
             ACTION_APPLY_MODULES_SOFT_REBOOT -> {
                 val pending = goAsync()
-                CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                receiverScope.launch {
                     try {
                         val result = RootRecoveryActions.kernelSuSoftReboot(
                             context.applicationContext,
@@ -112,5 +112,8 @@ class AutoRootActionReceiver : BroadcastReceiver() {
         const val ACTION_APPLY_MODULES_SOFT_REBOOT =
             "dev.busung.s25uroot.action.APPLY_MODULES_SOFT_REBOOT"
         private const val TAG = "RootMyGalaxyAutoRootAction"
+        // Shared bounded scope for notification actions; per-click scopes leak
+        // one Job per tap and are never cancelled.
+        private val receiverScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 }

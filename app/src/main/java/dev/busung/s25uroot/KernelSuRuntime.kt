@@ -14,7 +14,7 @@ import android.content.Context
  */
 internal object KernelSuRuntime {
     fun isControlActive(context: Context): Boolean {
-        if (NativeProbe.isKernelSuActive()) return true
+        if (NativeProbe.isKernelSuActiveSafe()) return true
 
         // This is the strongest userspace proof in the normal ZZI4 boot path.
         // Shizuku already runs as shell and KernelSU late-load was invoked with

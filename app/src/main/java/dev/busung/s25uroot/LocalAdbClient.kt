@@ -36,7 +36,7 @@ class LocalAdbClient(
     private lateinit var socket: Socket
     private lateinit var plainInput: DataInputStream
     private lateinit var plainOutput: DataOutputStream
-    private var useTls = false
+    @Volatile private var useTls = false
     private lateinit var tlsSocket: SSLSocket
     private lateinit var tlsInput: DataInputStream
     private lateinit var tlsOutput: DataOutputStream
@@ -58,7 +58,7 @@ class LocalAdbClient(
     // A WRTE consumed by writeSync while hunting for its OKAY ack (adbd can
     // interleave sync-protocol data before the ack). The push final-response
     // loop checks this slot first so the result is never lost.
-    private var pendingMessage: AdbMessage? = null
+    @Volatile private var pendingMessage: AdbMessage? = null
 
     private val inputStream get() = if (useTls) tlsInput else plainInput
     private val outputStream get() = if (useTls) tlsOutput else plainOutput
@@ -113,7 +113,8 @@ class LocalAdbClient(
             }
         } else if (message.command == A_AUTH && message.arg0 == ADB_AUTH_TOKEN) {
             // Legacy RSA auth
-            val sig = signToken(message.data!!)
+            val token = requireNotNull(message.data) { "ADB auth token frame has no data" }
+            val sig = signToken(token)
             writeBytes(A_AUTH, ADB_AUTH_SIGNATURE, 0, sig)
             message = read()
             if (message.command != A_CNXN) {
@@ -516,7 +517,7 @@ class LocalAdbClient(
         } catch (e: java.util.concurrent.TimeoutException) {
             future.cancel(true)
             runCatching { socket.close() }
-            runCatching { tlsSocket?.close() }
+            if (this::tlsSocket.isInitialized) runCatching { tlsSocket.close() }
             throw IOException("ADB write stalled >${WRITE_TIMEOUT_MS}ms; transport closed", e)
         }
     }
@@ -547,14 +548,12 @@ class LocalAdbClient(
     }
 
     override fun close() {
-        try { plainInput.close() } catch (_: Throwable) {}
-        try { plainOutput.close() } catch (_: Throwable) {}
-        try { socket.close() } catch (_: Exception) {}
-        if (useTls) {
-            try { tlsInput.close() } catch (_: Throwable) {}
-            try { tlsOutput.close() } catch (_: Throwable) {}
-            try { tlsSocket.close() } catch (_: Exception) {}
-        }
+        if (this::plainInput.isInitialized) try { plainInput.close() } catch (_: Throwable) {}
+        if (this::plainOutput.isInitialized) try { plainOutput.close() } catch (_: Throwable) {}
+        if (this::socket.isInitialized) try { socket.close() } catch (_: Exception) {}
+        if (this::tlsInput.isInitialized) try { tlsInput.close() } catch (_: Throwable) {}
+        if (this::tlsOutput.isInitialized) try { tlsOutput.close() } catch (_: Throwable) {}
+        if (this::tlsSocket.isInitialized) try { tlsSocket.close() } catch (_: Exception) {}
         // Closing the socket unblocks the reader thread's readFully, which
         // then pushes POISON and exits. Also unblocks a wedged writer.
         writeExecutor.shutdownNow()

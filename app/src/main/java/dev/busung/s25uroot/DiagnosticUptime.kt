@@ -28,8 +28,14 @@ internal object DiagnosticUptime {
 
     val allowedSeconds = listOf(0, 30, 60, 90, 120, 180, 300, 600)
 
+    /**
+     * Round-half-up to the nearest allowed value: ties pick the larger entry
+     * (e.g. 45 -> 60, 75 -> 90, 15 -> 30) so manual waits never round down
+     * silently.
+     */
     fun normalize(seconds: Int): Int =
-        allowedSeconds.minByOrNull { kotlin.math.abs(it - seconds) } ?: DEFAULT_SECONDS
+        allowedSeconds.minWithOrNull(compareBy({ kotlin.math.abs(it - seconds) }, { -it }))
+            ?: DEFAULT_SECONDS
 
     suspend fun waitUntil(seconds: Int) {
         val targetMillis = normalize(seconds) * 1_000L

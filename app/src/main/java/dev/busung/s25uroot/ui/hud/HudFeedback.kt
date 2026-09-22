@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlin.math.sin
 
@@ -66,7 +67,11 @@ private fun Vibrator.vibratePattern(timings: LongArray, amplitudes: IntArray) {
 enum class HudSfx { Click, Confirm, Error, RankUp, Phase }
 
 class HudSound(private val context: Context) {
-    private val scope = CoroutineScope(Dispatchers.Default)
+    private val scope = CoroutineScope(Dispatchers.Default + kotlinx.coroutines.SupervisorJob())
+
+    fun release() {
+        scope.cancel()
+    }
 
     fun play(kind: HudSfx, enabled: Boolean) {
         if (!enabled) return
@@ -116,6 +121,6 @@ class HudSound(private val context: Context) {
 fun rememberHudSound(): HudSound {
     val context = LocalContext.current
     val sound = remember(context) { HudSound(context.applicationContext) }
-    DisposableEffect(Unit) { onDispose { } }
+    DisposableEffect(sound) { onDispose { sound.release() } }
     return sound
 }

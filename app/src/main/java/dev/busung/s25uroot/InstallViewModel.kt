@@ -63,7 +63,11 @@ private data class CommandResult(val code: Int, val output: String)
  * whatever is already staged, and would keep running in its place.
  */
 internal fun stagedFileIsCurrent(staged: File, source: File): Boolean {
-    if (!staged.exists()) return false
+    if (!staged.isFile || !source.isFile) return false
+    // Fast path: fixed-size truncated payloads aside, length mismatch already
+    // proves staleness without hashing megabytes on the hot path.
+    if (staged.length() != source.length()) return false
+    if (staged.length() == 0L) return true
     val stagedDigest = sha256OrNull(staged) ?: return false
     return stagedDigest == sha256OrNull(source)
 }
@@ -104,10 +108,13 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
 
     fun refresh() {
         if (installJob?.isActive == true) return
-        mutableHistory.value = historyStore.load()
+        // Disk I/O off the main thread; history load is cheap but still file-backed.
+        viewModelScope.launch(Dispatchers.IO) {
+            mutableHistory.value = historyStore.load()
+        }
         discoveryJob?.cancel()
         discoveryJob = viewModelScope.launch(Dispatchers.IO) {
-            val probe = NativeProbe.run()
+            val probe = NativeProbe.runSafe()
             if (detectInstalled()) {
                 mutableState.value = InstallUiState(
                     phase = InstallPhase.Installed,
@@ -140,13 +147,17 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
         val runningId = activeHistoryEntry?.id
         val toDelete = ids.filterNot { it == runningId }
         if (toDelete.isEmpty()) return
-        toDelete.forEach(historyStore::delete)
-        mutableHistory.value = mutableHistory.value.filterNot { it.id in toDelete }
+        viewModelScope.launch(Dispatchers.IO) {
+            toDelete.forEach(historyStore::delete)
+            mutableHistory.value = mutableHistory.value.filterNot { it.id in toDelete }
+        }
     }
 
+    private var catalogJob: Job? = null
+
     fun loadTargetCatalog() {
-        if (mutableTargetCatalog.value.loading) return
-        viewModelScope.launch(Dispatchers.IO) {
+        if (catalogJob?.isActive == true || mutableTargetCatalog.value.loading) return
+        catalogJob = viewModelScope.launch(Dispatchers.IO) {
             mutableTargetCatalog.value = TargetCatalogUiState(loading = true)
             mutableTargetCatalog.value = try {
                 TargetCatalogUiState(
@@ -311,15 +322,27 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
         val bootToken = currentBootToken()
         val cachedP0Offset = if (policy.p0OffsetCache) cachedP0Offset(bootToken) else null
         val process = if (shizuku) {
+            require(ShizukuController.isGranted()) { app.getString(R.string.error_shizuku_permission) }
+            // Same --run-payload contract as AutoRootRunner: the helper executes
+            // the staged payload with (payload, helper, log) argv, not LD_PRELOAD
+            // into `true`.
+            val stagedHelper = shizukuStage(nativeHelperFile(), SHIZUKU_HELPER_PATH, "755")
             val stagedPayload = shizukuStage(payload, SHIZUKU_PAYLOAD_PATH, "755")
             ShizukuController.exec(
-                arrayOf("/system/bin/sh", "-c", "true"),
+                arrayOf(
+                    stagedHelper.absolutePath,
+                    "--run-payload",
+                    stagedPayload.absolutePath,
+                    stagedHelper.absolutePath,
+                    SHIZUKU_LOG_PATH,
+                ),
                 shizukuEnvironment(
                     stagedPayload.absolutePath,
-                    helper.absolutePath,
+                    stagedHelper.absolutePath,
                     policy,
                     cachedP0Offset,
                 ),
+                "/data/local/tmp",
             )
         } else {
             val processBuilder = ProcessBuilder(
@@ -336,7 +359,19 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
         }
         val captured = StringBuilder()
         val readLog: () -> String = if (shizuku) {
-            { drainProcessOutput(process, captured) }
+            {
+                drainProcessOutput(process, captured)
+                // Helper logs primarily to the remote log file; poll it the same
+                // way the LocalAdb path does, falling back to streamed stdout.
+                val remote = runCatching {
+                    ShizukuController.capture(arrayOf("cat", SHIZUKU_LOG_PATH))
+                }.getOrDefault("")
+                val streamed = captured.toString()
+                (remote.ifBlank { streamed }).let { raw ->
+                    // Keep stdout progress even when the file lags.
+                    if (streamed.isNotBlank() && raw != streamed && raw.isNotBlank()) "$raw\n$streamed" else raw
+                }
+            }
         } else {
             // Keep draining stdout while polling: if the helper fills the OS
             // pipe buffer it blocks on write and stops making log progress,
@@ -357,10 +392,8 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
                     lastProgressAt = SystemClock.elapsedRealtime()
                 }
                 val now = SystemClock.elapsedRealtime()
-                if (policy.p0OffsetCache) {
-                    require(now - lastProgressAt < EXPLOIT_STALL_MILLIS) {
-                        app.getString(R.string.error_exploit_stalled)
-                    }
+                require(now - lastProgressAt < EXPLOIT_STALL_MILLIS) {
+                    app.getString(R.string.error_exploit_stalled)
                 }
                 require(now - startedAt < EXPLOIT_TOTAL_MILLIS) {
                     app.getString(R.string.error_exploit_timeout)
@@ -407,10 +440,16 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
 
     private fun drainStream(stream: InputStream, buffer: StringBuilder) {
         val data = ByteArray(4096)
-        while (stream.available() > 0) {
-            val count = stream.read(data)
+        // available() is unreliable on pipes/ParcelFileDescriptor streams (0
+        // while data is in flight). Drain what is ready without blocking, then
+        // do one bounded blocking read when idle to avoid losing output.
+        while (true) {
+            val ready = try { stream.available() } catch (_: Throwable) { 0 }
+            if (ready <= 0) break
+            val count = try { stream.read(data, 0, minOf(data.size, ready)) } catch (_: Throwable) { -1 }
             if (count <= 0) break
             buffer.append(String(data, 0, count, Charsets.UTF_8))
+            if (count < ready) break
         }
     }
 
@@ -537,7 +576,9 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
             add("$name=$value")
         }
         add("CVE43499_ROOT_HELPER=$helperPath")
-        add("LD_PRELOAD=$payloadPath")
+        // Payload path travels as --run-payload argv (see executeExploit);
+        // no LD_PRELOAD indirection is required.
+        add("CVE43499_PAYLOAD=$payloadPath")
     }.toTypedArray()
 
     /**
@@ -634,7 +675,22 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
             .sortedByDescending(InstallHistoryEntry::startedAtMillis)
     }
 
-    private fun File.readTextIfPresent(): String = if (exists()) readText() else ""
+    private fun File.readTextIfPresent(): String = try {
+        if (!exists() || !isFile) ""
+        else {
+            // Cap log polling: exploit logs grow unbounded and readText() every
+            // 250ms is O(n²). Tail the last 256KB which holds the markers.
+            val maxTail = 256 * 1024
+            val len = length()
+            if (len <= maxTail) readText()
+            else inputStream().use { input ->
+                input.skip(len - maxTail)
+                input.readBytes().toString(Charsets.UTF_8)
+            }
+        }
+    } catch (_: Throwable) {
+        ""
+    }
 
     companion object {
         private const val EXPLOIT_STALL_MILLIS = 90_000L
@@ -647,7 +703,7 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
         private const val P0_CACHE_BOOT_TOKEN = "kernel_boot_id"
         private const val P0_CACHE_OFFSET = "offset"
         private const val P0_OFFSET_MAX = 0x1f0000L
-        private const val P0_OFFSET_MASK = 0xffffL
+        private const val P0_OFFSET_MASK = 0xfffL
         private const val SHIZUKU_LOG_PATH = "/data/local/tmp/ksu-exploit.log"
         private const val SHIZUKU_HELPER_PATH = "/data/local/tmp/ksu-helper"
         private const val SHIZUKU_PAYLOAD_PATH = "/data/local/tmp/ksu-payload"
@@ -658,7 +714,7 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
         private val SHIZUKU_LOG_POLL_INTERVAL = 1.seconds
         private val ANSI_ESCAPE = Regex("\u001B\\[[0-?]*[ -/]*[@-~]")
         private val P0_OFFSET_PATTERN = Regex(
-            "slide-kaslr-ok[^\\n]*slide=([0-9a-fA-F]{16})",
+            "slide-kaslr-ok[^\\n]*slide=([0-9a-fA-F]{1,16})",
         )
 
         internal fun exploitEnvironment(

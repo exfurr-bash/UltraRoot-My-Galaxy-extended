@@ -105,7 +105,6 @@ class Spake2(private val password: ByteArray) {
 
         // aesKey = HKDF-SHA256(key_material, salt=zeros32, info, 16)
         aesKey = hkdfSha256(keyMaterial, "adb pairing_auth aes-128-gcm key".toByteArray(), 16)
-        Log.d(TAG, "aesKey=${aesKey!!.toHex()}")
         return true
     }
 

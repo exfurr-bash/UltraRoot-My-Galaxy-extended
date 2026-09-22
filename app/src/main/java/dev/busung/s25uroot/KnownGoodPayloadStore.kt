@@ -72,9 +72,9 @@ internal object KnownGoodPayloadStore {
         val reusable = runCatching {
             val existing = loadDirectory(context, destination)
             existing.profile.profileId == profile.profileId &&
-                existing.profile.exploit.sha256 == profile.exploit.sha256 &&
-                existing.profile.kernelSu.artifact.sha256 == profile.kernelSu.artifact.sha256 &&
-                existing.profile.rootHelper?.sha256 == profile.rootHelper?.sha256 &&
+                existing.profile.exploit.sha256.equals(profile.exploit.sha256, ignoreCase = true) &&
+                existing.profile.kernelSu.artifact.sha256.equals(profile.kernelSu.artifact.sha256, ignoreCase = true) &&
+                (existing.profile.rootHelper?.sha256?.lowercase() == profile.rootHelper?.sha256?.lowercase()) &&
                 existing.profile.routePolicy == profile.routePolicy
         }.getOrDefault(false)
 
@@ -159,8 +159,8 @@ internal object KnownGoodPayloadStore {
         val expected = requireNotNull(profile.rootHelper) {
             "Cannot create an offline cache without root-helper metadata"
         }
-        val base = "v3-${profile.exploit.sha256.take(16)}-${profile.kernelSu.artifact.sha256.take(16)}"
-        return "$base-${expected.sha256.take(16)}"
+        val base = "v3-${profile.exploit.sha256.lowercase().take(16)}-${profile.kernelSu.artifact.sha256.lowercase().take(16)}"
+        return "$base-${expected.sha256.lowercase().take(16)}"
     }
 
     private fun copyVerified(source: File, destination: File, artifact: RemoteArtifact) {

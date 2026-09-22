@@ -10,8 +10,12 @@ data class RemoteArtifact(
 ) {
     init {
         require(size > 0) { "Artifact size must be positive" }
-        require(sha256.matches(Regex("[0-9a-f]{64}"))) { "Invalid artifact SHA-256" }
+        require(sha256.matches(Regex("[0-9a-fA-F]{64}"))) { "Invalid artifact SHA-256" }
     }
+
+    /** Canonical lowercase hash for stable comparisons across feed casings. */
+    val normalizedSha256: String
+        get() = sha256.lowercase()
 }
 
 data class KernelSuArtifact(

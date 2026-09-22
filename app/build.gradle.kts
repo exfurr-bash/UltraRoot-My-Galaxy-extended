@@ -11,8 +11,8 @@ android {
         applicationId = "dev.busung.s25uroot"
         minSdk = 33
         targetSdk = 36
-        versionCode = 16
-        versionName = "0.2.68"
+        versionCode = 17
+        versionName = "0.2.69"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
@@ -25,6 +25,9 @@ android {
             }
         }
     }
+
+    // Pin NDK so -Werror native builds don't break on toolchain upgrades.
+    ndkVersion = "28.2.13676358"
 
     buildFeatures {
         compose = true
@@ -42,11 +45,18 @@ android {
         // Signing credentials never live in the repo. Local dev can keep a
         // release.keystore next to the project root; CI restores it from the
         // KEYSTORE_BASE64 secret and passes passwords via env vars.
-        create("release") {
-            storeFile = file(System.getenv("KEYSTORE_PATH") ?: "../release.keystore")
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
-            keyAlias = System.getenv("KEY_ALIAS") ?: "release"
-            keyPassword = System.getenv("KEY_PASSWORD") ?: ""
+        // Only create the config when env credentials are present; otherwise
+        // Gradle would build a config with empty passwords and fail obscurely.
+        val keystorePath = System.getenv("KEYSTORE_PATH") ?: "../release.keystore"
+        val hasEnvCreds = !System.getenv("KEYSTORE_PASSWORD").isNullOrEmpty() &&
+            !System.getenv("KEY_PASSWORD").isNullOrEmpty()
+        if (hasEnvCreds || file(keystorePath).isFile) {
+            create("release") {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("KEY_ALIAS") ?: "release"
+                keyPassword = System.getenv("KEY_PASSWORD") ?: ""
+            }
         }
     }
 
@@ -54,9 +64,10 @@ android {
         release {
             // Unsigned when no keystore is present (CI signs the APK later
             // with apksigner); signed locally when release.keystore exists.
-            val releaseKeystore = signingConfigs.getByName("release").storeFile
-            if (releaseKeystore?.isFile == true) {
-                signingConfig = signingConfigs.getByName("release")
+            val releaseConfig = signingConfigs.findByName("release")
+            val releaseKeystore = releaseConfig?.storeFile
+            if (releaseConfig != null && releaseKeystore?.isFile == true) {
+                signingConfig = releaseConfig
             }
             isMinifyEnabled = false
             isShrinkResources = false

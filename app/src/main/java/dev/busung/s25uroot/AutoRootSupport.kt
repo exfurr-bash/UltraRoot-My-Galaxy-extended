@@ -98,7 +98,7 @@ internal object AutoRootSupport {
 
 internal fun shouldRunForBoot(currentBootToken: String, verifiedBootToken: String?): Boolean {
     if (currentBootToken.isBlank() || verifiedBootToken.isNullOrBlank()) return false
-    return currentBootToken != verifiedBootToken
+    return currentBootToken.trim() != verifiedBootToken.trim()
 }
 
 internal fun fileMatchesArtifact(file: File, artifact: RemoteArtifact): Boolean {
@@ -113,6 +113,6 @@ internal fun fileMatchesArtifact(file: File, artifact: RemoteArtifact): Boolean 
                 digest.update(buffer, 0, count)
             }
         }
-        digest.digest().joinToString("") { "%02x".format(it) } == artifact.sha256
+        digest.digest().joinToString("") { "%02x".format(it) }.equals(artifact.sha256, ignoreCase = true)
     }.getOrDefault(false)
 }

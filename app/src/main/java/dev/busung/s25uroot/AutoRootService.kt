@@ -44,10 +44,10 @@ class AutoRootService : Service() {
     private var runJob: Job? = null
     private var handoffTimeoutJob: Job? = null
     private var bindingLossJob: Job? = null
-    private var executorBound = false
-    private var executorConnected = false
-    private var shuttingDown = false
-    private var pendingBootToken: String? = null
+    @Volatile private var executorBound = false
+    @Volatile private var executorConnected = false
+    @Volatile private var shuttingDown = false
+    @Volatile private var pendingBootToken: String? = null
 
     private val executorConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {

@@ -111,7 +111,7 @@ internal class AutoRootRunner(
         postRootExec: suspend (String) -> AutoRootCommandResult,
     ) {
         val verification = runCatching { ksuExec(arrayOf("--ksu-info")) }.getOrNull()
-        val nativeActive = NativeProbe.isKernelSuActive()
+        val nativeActive = NativeProbe.isKernelSuActiveSafe()
         require(verification?.code == 0 || nativeActive) {
             context.getString(
                 R.string.error_ksu_verify,
@@ -148,7 +148,7 @@ internal class AutoRootRunner(
         var lastOutput = ""
         while (SystemClock.elapsedRealtime() < deadline) {
             val probe = runCatching { ksuExec(arrayOf("--ksu-info")) }.getOrNull()
-            val controlActive = probe?.code == 0 || NativeProbe.isKernelSuActive()
+            val controlActive = probe?.code == 0 || NativeProbe.isKernelSuActiveSafe()
             if (controlActive) {
                 val global = runCatching {
                     postRootExec(KernelSuGlobalReadiness.command(bootToken))
@@ -170,7 +170,7 @@ internal class AutoRootRunner(
             onLog("[*] auto-late-load readiness probe: ${lastOutput.takeLast(320)}")
         }
 
-        if (!NativeProbe.isKernelSuActive()) return false
+        if (!NativeProbe.isKernelSuActiveSafe()) return false
         val finalGlobal = runCatching {
             postRootExec(KernelSuGlobalReadiness.command(bootToken))
         }.getOrNull()
@@ -287,7 +287,21 @@ internal class AutoRootRunner(
         fun readLog(): String {
             drainProcessOutput(process, captured)
             return if (useShellTransport) {
-                captured.toString()
+                // Remote helper logs to SHELL_LOG_PATH; stdout alone stalls
+                // detection when the helper only writes to the file.
+                if (shellTransport == AutoRootShellTransport.Shizuku) {
+                    val remote = runCatching {
+                        ShizukuController.capture(arrayOf("cat", SHELL_LOG_PATH))
+                    }.getOrDefault("")
+                    val streamed = captured.toString()
+                    when {
+                        remote.isBlank() -> streamed
+                        streamed.isBlank() || remote == streamed -> remote
+                        else -> "$remote\n$streamed"
+                    }
+                } else {
+                    captured.toString()
+                }
             } else {
                 localLogFile.readTextIfPresent()
             }
@@ -639,10 +653,15 @@ internal class AutoRootRunner(
 
     private fun drainStream(stream: InputStream, buffer: StringBuilder) {
         val data = ByteArray(4096)
-        while (stream.available() > 0) {
-            val count = stream.read(data)
+        // available() is unreliable on pipes/ParcelFileDescriptor streams (0
+        // while data is in flight). Drain what is ready without blocking.
+        while (true) {
+            val ready = try { stream.available() } catch (_: Throwable) { 0 }
+            if (ready <= 0) break
+            val count = try { stream.read(data, 0, minOf(data.size, ready)) } catch (_: Throwable) { -1 }
             if (count <= 0) break
             buffer.append(String(data, 0, count, Charsets.UTF_8))
+            if (count < ready) break
         }
     }
 
@@ -674,7 +693,22 @@ internal class AutoRootRunner(
 
     private fun shellQuote(value: String) = "'${value.replace("'", "'\\''")}'"
 
-    private fun File.readTextIfPresent(): String = if (exists()) readText() else ""
+    private fun File.readTextIfPresent(): String = try {
+        if (!exists() || !isFile) ""
+        else {
+            // Cap log polling: exploit logs grow unbounded and readText() every
+            // 250ms is O(n²). Tail the last 256KB which holds the markers.
+            val maxTail = 256 * 1024
+            val len = length()
+            if (len <= maxTail) readText()
+            else inputStream().use { input ->
+                input.skip(len - maxTail)
+                input.readBytes().toString(Charsets.UTF_8)
+            }
+        }
+    } catch (_: Throwable) {
+        ""
+    }
 
     companion object {
         private const val EXPLOIT_STALL_MILLIS = 90_000L
@@ -687,7 +721,7 @@ internal class AutoRootRunner(
         private const val P0_CACHE_BOOT_TOKEN = "kernel_boot_id"
         private const val P0_CACHE_OFFSET = "offset"
         private const val P0_OFFSET_MAX = 0x1f0000L
-        private const val P0_OFFSET_MASK = 0xffffL
+        private const val P0_OFFSET_MASK = 0xfffL
         private const val KSUD_PATH = "/data/local/tmp/ksud-s25u-kdp"
         private const val KSUD_STAGE_PATH = "/data/local/tmp/.ksud-stage"
         private const val KSUD_REFRESH_PATH = "/data/local/tmp/.ksud-refresh"
@@ -701,7 +735,7 @@ internal class AutoRootRunner(
         private val AUTO_LATE_LOAD_POLL_INTERVAL = 400.milliseconds
         private val ANSI_ESCAPE = Regex("\u001B\\[[0-?]*[ -/]*[@-~]")
         private val P0_OFFSET_PATTERN = Regex(
-            "slide-kaslr-ok[^\\n]*slide=([0-9a-fA-F]{16})",
+            "slide-kaslr-ok[^\\n]*slide=([0-9a-fA-F]{1,16})",
         )
 
         private fun stripAnsi(value: String): String = ANSI_ESCAPE.replace(value, "").replace("\r", "")

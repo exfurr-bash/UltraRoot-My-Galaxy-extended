@@ -192,7 +192,7 @@ class ShizukuBootService : Service() {
      * fallback untouched.
      */
     private suspend fun tryExistingKernelSuRootStarterOnce(): ShizukuStarter.Outcome? {
-        if (!NativeProbe.isKernelSuActive()) return null
+        if (!NativeProbe.isKernelSuActiveSafe()) return null
 
         val helperProbe = RootHelperShell.shell(this, "id")
         if (helperProbe.exitCode == 0 && helperProbe.output.contains("uid=0")) {

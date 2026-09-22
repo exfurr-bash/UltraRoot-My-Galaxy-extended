@@ -73,7 +73,7 @@ open class AutoRootExecutorService : Service() {
     }
 
     private fun handleStartCommand(message: Message) {
-        if (runJob != null) {
+        if (runJob?.isActive == true) {
             Log.w(TAG, "Ignoring duplicate Auto Root executor start command")
             return
         }
