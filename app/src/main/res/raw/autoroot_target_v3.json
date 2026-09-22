@@ -763,6 +763,35 @@
         "p0OffsetCache": true,
         "prefersShellTransport": false
       }
+    },
+    {
+      "payloadId": "a55x-A556EXXUEDZE4",
+      "displayName": "Galaxy A55 5G | Kernel 6.1.157",
+      "models": [
+        "SM-A556E"
+      ],
+      "kernelVersions": [
+        "6.1.157"
+      ],
+      "requiresFreshP0Session": true,
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/artifacts/a55x-A556EXXUEDZE4/cve-2026-43499-app.so",
+        "size": 104128,
+        "sha256": "dc44017e386f5b4296b868e82c58684b1bf0060a66a8b8f209859be658d70720"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/exfurr-bash/UltraRoot-My-Galaxy-Payloads/main/kernelsu/ksud-A556EXXUEDZE4-kdp",
+        "size": 4780056,
+        "sha256": "dc3eb02640492a8d6f78f8515c6ae5c75ddbfa593f53cd0f3efdfc82a29c4219"
+      },
+      "routePolicy": {
+        "slideRoute": "default",
+        "attempts": 24,
+        "attemptTimeoutSec": 120,
+        "p0AttemptTimeoutSec": 45,
+        "p0OffsetCache": true,
+        "prefersShellTransport": false
+      }
     }
   ]
 }
