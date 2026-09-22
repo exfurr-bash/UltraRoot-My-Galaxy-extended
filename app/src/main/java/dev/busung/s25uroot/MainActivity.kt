@@ -690,7 +690,12 @@ private fun RootApp(
                             soundEnabled = soundEnabled,
                             onInstall = {
                                 selectedProfile = null
-                                if (advancedMode) {
+                                // Fallback manual: se o auto-detect falhou (fase Failed),
+                                // oferece o catálogo completo mesmo com o Advanced
+                                // desligado, em vez de repetir o automático que
+                                // acabou de falhar. O picker já mostra os avisos
+                                // de compatibilidade por perfil.
+                                if (advancedMode || installState.phase == InstallPhase.Failed) {
                                     showTargetPicker = true
                                     installViewModel.loadTargetCatalog()
                                 } else {
