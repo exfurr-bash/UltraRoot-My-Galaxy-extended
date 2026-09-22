@@ -18,6 +18,9 @@ data class DeviceSnapshot(
     val abi: String,
     val pageSize: Long,
 ) {
+    val kernelBuildVersion: String
+        get() = kernelVersionInfo
+
     val kernelVersion: String
         get() = kernelRelease.takeWhile { it.isDigit() || it == '.' }
 

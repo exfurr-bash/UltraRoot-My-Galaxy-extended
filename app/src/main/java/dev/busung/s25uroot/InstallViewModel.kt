@@ -27,11 +27,17 @@ enum class InstallPhase {
     Failed,
 }
 
+enum class RootMode {
+    Online,
+    Offline,
+}
+
 data class InstallUiState(
     val phase: InstallPhase = InstallPhase.Checking,
     val message: String = "",
     val probeOutput: String = "",
     val log: String = "",
+    val mode: RootMode = RootMode.Online,
 ) {
     val busy: Boolean
         get() = phase in setOf(
@@ -157,13 +163,14 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun install(profileId: String? = null) {
+    fun install(profileId: String? = null, mode: RootMode = RootMode.Online) {
         if (installJob?.isActive == true || mutableState.value.phase == InstallPhase.Installed) return
         discoveryJob?.cancel()
         installJob = viewModelScope.launch(Dispatchers.IO) {
             mutableState.value = InstallUiState(
                 phase = InstallPhase.Checking,
                 probeOutput = mutableState.value.probeOutput,
+                mode = mode,
             )
             startHistory()
             // Freeze the transport for the whole run so a mid-run preference
@@ -182,26 +189,101 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
                     appendLog(app.getString(R.string.log_shizuku_permission))
                 }
                 setPhase(InstallPhase.Checking, app.getString(R.string.status_checking_github))
-                val profile = if (profileId == null) {
-                    repository.resolveTarget(DeviceSnapshot.current())
+                val payloads: VerifiedPayloads
+                val profile: TargetProfile
+                if (mode == RootMode.Offline) {
+                    appendLog(app.getString(R.string.log_offline_use))
+                    val cached = KnownGoodPayloadStore.load(app, profileId)
+                    profile = cached.profile
+                    payloads = cached
                 } else {
-                    repository.resolveTarget(profileId)
+                    profile = if (profileId == null) {
+                        repository.resolveTarget(DeviceSnapshot.current())
+                    } else {
+                        repository.resolveTarget(profileId)
+                    }
+                    setPhase(InstallPhase.Downloading, app.getString(R.string.status_downloading_payload))
+                    payloads = repository.download(profile) { appendLog("[*] $it") }
+                    appendLog(app.getString(R.string.log_download_verified))
                 }
                 appendLog(app.getString(R.string.log_profile, profile.profileId))
                 updateHistoryProfile(profile.profileId)
 
-                setPhase(InstallPhase.Downloading, app.getString(R.string.status_downloading_payload))
-                val payloads = repository.download(profile) { appendLog("[*] $it") }
-                appendLog(app.getString(R.string.log_download_verified))
+                val minUptime = AppPreferences.manualBootMinUptimeSeconds(app)
+                if (minUptime > 0) {
+                    setPhase(
+                        InstallPhase.Checking,
+                        app.getString(R.string.status_waiting_boot_uptime, minUptime),
+                    )
+                    DiagnosticUptime.waitUntil(minUptime)
+                }
 
+                appendLog(
+                    profile.routePolicy.describe(
+                        if (shizukuEnabled()) ExploitRoutePolicy.SHELL_TRANSPORT
+                        else ExploitRoutePolicy.APP_TRANSPORT,
+                    ),
+                )
                 setPhase(InstallPhase.Exploiting, app.getString(R.string.status_exploit_running))
-                executeExploit(payloads.exploit, profile.requiresFreshP0Session)
+                executeExploit(payloads.exploit, profile.routePolicy)
 
                 setPhase(InstallPhase.LoadingKernelSu, app.getString(R.string.status_ksu_loading))
                 installKernelSu(payloads)
 
                 setPhase(InstallPhase.Installed, app.getString(R.string.status_ksu_active))
                 appendLog(app.getString(R.string.log_install_complete))
+                if (mode == RootMode.Online) {
+                    runCatching {
+                        KnownGoodPayloadStore.publish(
+                            app,
+                            VerifiedPayloads(profile, payloads.exploit, payloads.kernelSu, PayloadSource.Online),
+                        )
+                    }.onSuccess {
+                        appendLog(app.getString(R.string.log_cache_saved))
+                    }.onFailure { cacheError ->
+                        appendLog("[*] offline cache skipped: ${cacheError.message}")
+                    }
+                }
+
+                val softRebootAfterRoot = AppPreferences.restartZygoteAfterRoot(app)
+                val startShizuku = AppPreferences.autoStartShizukuAfterRoot(app)
+                if (softRebootAfterRoot || startShizuku) {
+                    if (softRebootAfterRoot) {
+                        mutableState.value = mutableState.value.copy(
+                            message = app.getString(R.string.zygote_restart_starting),
+                        )
+                    }
+                    try {
+                        val postRoot = PostRootAutomation.run(
+                            context = app,
+                            softReboot = softRebootAfterRoot,
+                            startShizuku = startShizuku,
+                            prepareZzi4Modules = false,
+                            onLog = ::appendLog,
+                        )
+                        if (startShizuku && !postRoot.shizukuStarted && postRoot.detail.isNotBlank()) {
+                            appendLog("[!] Post-root Shizuku automation: ${postRoot.detail.take(200)}")
+                        }
+                        if (softRebootAfterRoot) {
+                            if (postRoot.softRebootStarted) {
+                                appendLog("[+] KernelSU native soft reboot accepted; module lifecycle will restart")
+                                finishHistory(InstallRunResult.Succeeded)
+                                return@launch
+                            }
+                            appendLog(
+                                app.getString(
+                                    R.string.zygote_restart_failed,
+                                    postRoot.detail.take(200),
+                                ),
+                            )
+                        }
+                    } catch (error: Throwable) {
+                        appendLog(
+                            "[!] Post-root automation failed: " +
+                                (error.message ?: error.javaClass.simpleName),
+                        )
+                    }
+                }
                 finishHistory(InstallRunResult.Succeeded)
             } catch (error: Throwable) {
                 appendLog("[-] ${error.message ?: error.javaClass.simpleName}")
@@ -213,7 +295,7 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private suspend fun executeExploit(payload: File, requiresFreshP0Session: Boolean) {
+    private suspend fun executeExploit(payload: File, policy: ExploitRoutePolicy) {
         val shizuku = shizukuEnabled()
         val logFile = if (shizuku) File(SHIZUKU_LOG_PATH) else File(app.filesDir, "exploit.log")
         if (shizuku) {
@@ -227,7 +309,7 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
         }
         val logPrefix = mutableState.value.log
         val bootToken = currentBootToken()
-        val cachedP0Offset = if (requiresFreshP0Session) null else cachedP0Offset(bootToken)
+        val cachedP0Offset = if (policy.p0OffsetCache) cachedP0Offset(bootToken) else null
         val process = if (shizuku) {
             val stagedPayload = shizukuStage(payload, SHIZUKU_PAYLOAD_PATH, "755")
             ShizukuController.exec(
@@ -235,7 +317,7 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
                 shizukuEnvironment(
                     stagedPayload.absolutePath,
                     helper.absolutePath,
-                    requiresFreshP0Session,
+                    policy,
                     cachedP0Offset,
                 ),
             )
@@ -248,7 +330,7 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
                 logFile.absolutePath,
             ).redirectErrorStream(true)
             processBuilder.environment().putAll(
-                exploitEnvironment(requiresFreshP0Session, cachedP0Offset),
+                exploitEnvironment(policy, cachedP0Offset),
             )
             processBuilder.start()
         }
@@ -269,13 +351,13 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
             while (process.isAlive) {
                 val rawLog = readLog()
                 if (rawLog != lastRawLog) {
-                    if (!requiresFreshP0Session) cacheP0Offset(bootToken, rawLog)
+                    if (policy.p0OffsetCache) cacheP0Offset(bootToken, rawLog)
                     publishExploitLog(logPrefix, rawLog)
                     lastRawLog = rawLog
                     lastProgressAt = SystemClock.elapsedRealtime()
                 }
                 val now = SystemClock.elapsedRealtime()
-                if (!requiresFreshP0Session) {
+                if (policy.p0OffsetCache) {
                     require(now - lastProgressAt < EXPLOIT_STALL_MILLIS) {
                         app.getString(R.string.error_exploit_stalled)
                     }
@@ -288,7 +370,7 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
 
             val exitCode = process.waitFor()
             val rawLog = readLog()
-            if (!requiresFreshP0Session) cacheP0Offset(bootToken, rawLog)
+            if (policy.p0OffsetCache) cacheP0Offset(bootToken, rawLog)
             publishExploitLog(logPrefix, rawLog)
             // Both transports drain into `captured` during the poll loop, so
             // this never blocks on a child still holding the pipe open.
@@ -367,8 +449,14 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun detectInstalled(): Boolean {
-        if (NativeProbe.isKernelSuActive()) return true
-        val bootToken = currentBootToken() ?: return false
+        val bootToken = currentBootToken()
+        if (KernelSuRuntime.isControlActive(app)) {
+            if (bootToken != null) {
+                runCatching { AutoRootSupport.markVerifiedForBoot(app, bootToken) }
+            }
+            return true
+        }
+        if (bootToken == null) return false
         val receipt = app.getSharedPreferences(INSTALL_RECEIPT, Application.MODE_PRIVATE)
         return receipt.getString(RECEIPT_BOOT_TOKEN, null) == bootToken &&
             receipt.getBoolean(RECEIPT_VERIFIED, false)
@@ -442,10 +530,10 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
     private fun shizukuEnvironment(
         payloadPath: String,
         helperPath: String,
-        requiresFreshP0Session: Boolean,
+        policy: ExploitRoutePolicy,
         cachedP0Offset: String?,
     ): Array<String> = buildList {
-        exploitEnvironment(requiresFreshP0Session, cachedP0Offset).forEach { (name, value) ->
+        exploitEnvironment(policy, cachedP0Offset).forEach { (name, value) ->
             add("$name=$value")
         }
         add("CVE43499_ROOT_HELPER=$helperPath")
@@ -549,9 +637,6 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
     private fun File.readTextIfPresent(): String = if (exists()) readText() else ""
 
     companion object {
-        private const val EXPLOIT_ATTEMPTS = "24"
-        private const val P0_ATTEMPT_TIMEOUT_SEC = "45"
-        private const val EXPLOIT_ATTEMPT_TIMEOUT_SEC = "120"
         private const val EXPLOIT_STALL_MILLIS = 90_000L
         private const val EXPLOIT_TOTAL_MILLIS = 900_000L
         private const val HELPER_TIMEOUT_MILLIS = 120_000L
@@ -561,7 +646,6 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
         private const val P0_CACHE = "p0_cache"
         private const val P0_CACHE_BOOT_TOKEN = "kernel_boot_id"
         private const val P0_CACHE_OFFSET = "offset"
-        private const val P0_OFFSET_ENV = "SLIDE_P0_OFFSET"
         private const val P0_OFFSET_MAX = 0x1f0000L
         private const val P0_OFFSET_MASK = 0xffffL
         private const val SHIZUKU_LOG_PATH = "/data/local/tmp/ksu-exploit.log"
@@ -578,16 +662,9 @@ class InstallViewModel(application: Application) : AndroidViewModel(application)
         )
 
         internal fun exploitEnvironment(
-            requiresFreshP0Session: Boolean,
+            policy: ExploitRoutePolicy,
             cachedP0Offset: String?,
-        ): Map<String, String> = buildMap {
-            put("EXPLOIT_ATTEMPTS", if (requiresFreshP0Session) "1" else EXPLOIT_ATTEMPTS)
-            if (!requiresFreshP0Session) {
-                put("P0_ATTEMPT_TIMEOUT_SEC", P0_ATTEMPT_TIMEOUT_SEC)
-                put("EXPLOIT_ATTEMPT_TIMEOUT_SEC", EXPLOIT_ATTEMPT_TIMEOUT_SEC)
-                cachedP0Offset?.let { put(P0_OFFSET_ENV, it) }
-            }
-        }
+        ): Map<String, String> = policy.environment(cachedP0Offset)
 
         private fun stripAnsi(value: String): String = ANSI_ESCAPE.replace(value, "").replace("\r", "")
     }

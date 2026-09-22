@@ -39,8 +39,20 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon
+      - name: Prepare bundled production payloads
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/payloads"
+          git clone --quiet --depth=1 --branch main \
+            "https://github.com/igorcv88/Root-My-Galaxy-Payloads-Extended.git" \
+            "$RUNNER_TEMP/payloads"
+          python3 .github/scripts/prepare_production_payload_bundle.py "$RUNNER_TEMP/payloads"
+          test -s app/src/main/assets/production-payloads/targets-v3.json
+          test -s app/src/main/jniLibs/arm64-v8a/libcve43499root.so
+          rm -rf "$RUNNER_TEMP/payloads"
+
+      - name: Test and build debug APK
+        run: ./gradlew :app:testDebugUnitTest :app:assembleDebug --no-daemon
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

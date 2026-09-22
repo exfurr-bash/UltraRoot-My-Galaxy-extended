@@ -13,13 +13,19 @@ import androidx.activity.viewModels
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -47,10 +53,19 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
@@ -58,7 +73,30 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.busung.s25uroot.ui.hud.BloodBurstLottie
+import dev.busung.s25uroot.ui.hud.BloodParticles
+import dev.busung.s25uroot.ui.hud.BrutalHaptic
+import dev.busung.s25uroot.ui.hud.HudColors
+import dev.busung.s25uroot.ui.hud.HudCornerTicks
+import dev.busung.s25uroot.ui.hud.HudDamageFlash
+import dev.busung.s25uroot.ui.hud.HudHeader
+import dev.busung.s25uroot.ui.hud.HudLed
+import dev.busung.s25uroot.ui.hud.HudMotion
+import dev.busung.s25uroot.ui.hud.HudSfx
+import dev.busung.s25uroot.ui.hud.HudTypewriter
+import dev.busung.s25uroot.ui.hud.PentagramSpinLottie
+import dev.busung.s25uroot.ui.hud.StyleRankBadge
+import dev.busung.s25uroot.ui.hud.UltrakillTitle
+import dev.busung.s25uroot.ui.hud.brutalHaptic
+import dev.busung.s25uroot.ui.hud.hudAnimatedScanlines
+import dev.busung.s25uroot.ui.hud.hudBloodPulse
+import dev.busung.s25uroot.ui.hud.hudCutShape
+import dev.busung.s25uroot.ui.hud.hudScanlines
+import dev.busung.s25uroot.ui.hud.hudShake
+import dev.busung.s25uroot.ui.hud.rememberHudSound
+import dev.busung.s25uroot.ui.hud.styleRankFor
 import dev.busung.s25uroot.ui.theme.RootMyGalaxyTheme
+import androidx.compose.foundation.BorderStroke
 import kotlinx.coroutines.delay
 
 class InstallActivity : ComponentActivity() {
@@ -69,6 +107,9 @@ class InstallActivity : ComponentActivity() {
         enableEdgeToEdge()
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         val profileId = intent.getStringExtra(EXTRA_PROFILE_ID)
+        val rootMode = runCatching {
+            RootMode.valueOf(intent.getStringExtra(EXTRA_ROOT_MODE) ?: RootMode.Online.name)
+        }.getOrDefault(RootMode.Online)
         val startInstall = savedInstanceState == null && AppPreferences.consumeInstallRequest(
             this,
             intent.getStringExtra(EXTRA_INSTALL_REQUEST_ID),
@@ -81,12 +122,12 @@ class InstallActivity : ComponentActivity() {
             ) {
                 val installState by installViewModel.state.collectAsStateWithLifecycle()
                 BackHandler(enabled = installState.busy) {}
-                LaunchedEffect(startInstall, profileId) {
-                    if (startInstall) installViewModel.install(profileId)
+                LaunchedEffect(startInstall, profileId, rootMode) {
+                    if (startInstall) installViewModel.install(profileId, rootMode)
                 }
                 InstallScreen(
                     installState = installState,
-                    onRetry = { installViewModel.install(profileId) },
+                    onRetry = { installViewModel.install(profileId, rootMode) },
                     onClose = ::finish,
                 )
             }
@@ -96,6 +137,7 @@ class InstallActivity : ComponentActivity() {
     companion object {
         const val EXTRA_INSTALL_REQUEST_ID = "install_request_id"
         const val EXTRA_PROFILE_ID = "profile_id"
+        const val EXTRA_ROOT_MODE = "root_mode"
     }
 }
 
@@ -130,150 +172,302 @@ private fun InstallScreen(
 ) {
     val logScrollState = rememberScrollState()
     val view = LocalView.current
+    val context = LocalContext.current
+    val sound = rememberHudSound()
+    val soundOn = remember { AppPreferences.soundEnabled(context) }
+    var flash by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(installState.log) {
         delay(40)
         logScrollState.scrollTo(logScrollState.maxValue)
     }
+    // Phase-change punch: flash + sound + haptics.
+    LaunchedEffect(installState.phase) {
+        flash = when (installState.phase) {
+            InstallPhase.Failed -> 0.45f
+            InstallPhase.Installed -> 0.35f
+            else -> 0.18f
+        }
+        when (installState.phase) {
+            InstallPhase.Installed -> {
+                sound.play(HudSfx.RankUp, soundOn)
+                brutalHaptic(view, BrutalHaptic.Success)
+            }
+            InstallPhase.Failed -> {
+                sound.play(HudSfx.Error, soundOn)
+                brutalHaptic(view, BrutalHaptic.Fail)
+            }
+            else -> {
+                sound.play(HudSfx.Phase, soundOn)
+                brutalHaptic(view, BrutalHaptic.Click)
+            }
+        }
+        delay(220)
+        flash = 0f
+    }
 
-    Scaffold { padding ->
-        Column(
+    Scaffold(containerColor = HudColors.Void) { padding ->
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .hudAnimatedScanlines()
+                .hudBloodPulse(installState.busy),
         ) {
             Column(
-                modifier = Modifier.padding(top = 28.dp, bottom = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp)
+                    .hudShake(trigger = installState.phase, intensity = if (installState.phase == InstallPhase.Failed) 16f else 7f),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Text(
-                    text = stringResource(R.string.install_title),
-                    style = MaterialTheme.typography.headlineLarge,
-                )
-                Text(
-                    text = if (installState.busy) {
-                        stringResource(R.string.install_keep_open)
-                    } else {
-                        installState.message
-                    },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            InstallerStatusCard(installState)
-            InstallerSteps(installState.phase)
-            InstallerLog(
-                output = installState.log,
-                modifier = Modifier.weight(1f),
-                scrollState = logScrollState,
-            )
-
-            if (!installState.busy) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                Column(
+                    modifier = Modifier.padding(top = 28.dp, bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    if (installState.phase == InstallPhase.Failed) {
-                        FilledTonalButton(
-                            onClick = {
-                                clickHaptic(view)
-                                onClose()
+                    HudHeader(left = "RITUAL", right = if (installState.busy) "ACTIVE" else "STANDBY")
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        HudLed(
+                            color = if (installState.phase == InstallPhase.Failed) HudColors.WarningAmber else HudColors.Blood,
+                            blinking = installState.busy,
+                        )
+                        if (installState.busy) {
+                            PentagramSpinLottie(spinning = true, size = 40.dp)
+                        }
+                        UltrakillTitle(
+                            text = stringResource(R.string.install_title),
+                            sub = when {
+                                installState.mode == RootMode.Offline -> "offline ritual — no download"
+                                installState.busy -> "do not look away"
+                                else -> null
                             },
                             modifier = Modifier.weight(1f),
-                        ) {
-                            Text(stringResource(R.string.action_close))
-                        }
-                        Button(
-                            onClick = {
-                                clickHaptic(view)
-                                onRetry()
-                            },
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text(stringResource(R.string.action_retry))
-                        }
-                    } else if (installState.phase == InstallPhase.Installed) {
-                        Button(
-                            onClick = {
-                                clickHaptic(view)
-                                onClose()
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(stringResource(R.string.action_done))
+                        )
+                        StyleRankBadge(rank = styleRankFor(installState.phase))
+                    }
+                    HudTypewriter(
+                        text = if (installState.busy) {
+                            stringResource(R.string.install_keep_open)
+                        } else {
+                            installState.message
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = HudColors.BoneDim,
+                        charsPerSecond = 80,
+                    )
+                }
+
+                InstallerStatusCard(installState)
+                InstallerSteps(installState.phase)
+                InstallerLog(
+                    output = installState.log,
+                    modifier = Modifier.weight(1f),
+                    scrollState = logScrollState,
+                )
+
+                if (!installState.busy) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        if (installState.phase == InstallPhase.Failed) {
+                            FilledTonalButton(
+                                onClick = {
+                                    clickHaptic(view)
+                                    onClose()
+                                },
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text(stringResource(R.string.action_close))
+                            }
+                            Button(
+                                onClick = {
+                                    brutalHaptic(view, BrutalHaptic.Heavy)
+                                    onRetry()
+                                },
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text(stringResource(R.string.action_retry))
+                            }
+                        } else if (installState.phase == InstallPhase.Installed) {
+                            Button(
+                                onClick = {
+                                    clickHaptic(view)
+                                    onClose()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(stringResource(R.string.action_done))
+                            }
                         }
                     }
                 }
             }
+            BloodParticles(burstKey = installState.phase.takeIf { it == InstallPhase.Installed || it == InstallPhase.Failed })
+            if (installState.phase == InstallPhase.Installed) {
+                BloodBurstLottie(
+                    burstKey = installState.phase,
+                    size = 260.dp,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+            }
+            HudDamageFlash(alpha = flash)
         }
     }
 }
 
 @Composable
 private fun InstallerStatusCard(installState: InstallUiState) {
+    val failed = installState.phase == InstallPhase.Failed
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .animateContentSize(),
-        shape = MaterialTheme.shapes.large,
+        shape = hudCutShape(12.dp),
+        border = BorderStroke(
+            1.dp,
+            if (failed) HudColors.WarningAmber else HudColors.Blood.copy(alpha = 0.65f),
+        ),
         colors = CardDefaults.cardColors(
-            containerColor = when (installState.phase) {
-                InstallPhase.Failed -> MaterialTheme.colorScheme.errorContainer
-                else -> MaterialTheme.colorScheme.primaryContainer
-            },
-            contentColor = if (installState.phase == InstallPhase.Failed) {
-                MaterialTheme.colorScheme.onErrorContainer
-            } else {
-                MaterialTheme.colorScheme.onPrimaryContainer
-            },
+            containerColor = HudColors.PlateHigh,
+            contentColor = HudColors.Bone,
         ),
     ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+        Box(modifier = Modifier.fillMaxWidth()) {
+            HudCornerTicks(modifier = Modifier.matchParentSize())
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-                AnimatedContent(targetState = installState.phase, label = "install-status-icon") { phase ->
-                    when {
-                        installState.busy -> LoadingIndicator(
-                            modifier = Modifier.size(44.dp),
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                HudHeader(
+                    left = "STATUS",
+                    right = if (installState.busy) "WORKING" else installState.phase.name.uppercase(),
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    AnimatedContent(targetState = installState.phase, label = "install-status-icon") { phase ->
+                        when {
+                            installState.busy -> LoadingIndicator(
+                                modifier = Modifier.size(44.dp),
+                                color = HudColors.Blood,
+                            )
+                            phase == InstallPhase.Installed -> Icon(
+                                Icons.Rounded.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(44.dp),
+                                tint = HudColors.Blood,
+                            )
+                            else -> Icon(
+                                Icons.Rounded.Error,
+                                contentDescription = null,
+                                modifier = Modifier.size(44.dp),
+                                tint = if (failed) HudColors.WarningAmber else HudColors.Blood,
+                            )
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = installState.message,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = HudColors.Bone,
                         )
-                        phase == InstallPhase.Installed -> Icon(
-                            Icons.Rounded.Check,
-                            contentDescription = null,
-                            modifier = Modifier.size(44.dp),
-                        )
-                        else -> Icon(
-                            Icons.Rounded.Error,
-                            contentDescription = null,
-                            modifier = Modifier.size(44.dp),
+                        Text(
+                            text = installPhaseDetail(installState.phase),
+                            color = HudColors.BoneDim,
                         )
                     }
                 }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = installState.message,
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                    Text(
-                        text = installPhaseDetail(installState.phase),
-                        color = LocalContentColor.current.copy(alpha = 0.78f),
-                    )
-                }
+                BrutalProgressBar(
+                    progress = installProgress(installState.phase),
+                    failed = failed,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
-            LinearProgressIndicator(
-                progress = { installProgress(installState.phase) },
-                modifier = Modifier.fillMaxWidth(),
-                color = LocalContentColor.current,
-                trackColor = LocalContentColor.current.copy(alpha = 0.2f),
-                drawStopIndicator = {},
+        }
+    }
+}
+
+@Composable
+private fun BrutalProgressBar(
+    progress: Float,
+    failed: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val animated by animateFloatAsState(
+        targetValue = progress.coerceIn(0f, 1f),
+        animationSpec = tween(HudMotion.MEDIUM),
+        label = "brutal-progress",
+    )
+    val barColor = if (failed) HudColors.WarningAmber else HudColors.Blood
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = "// ${(animated * 100).toInt()}%",
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    color = barColor,
+                ),
+            )
+            Text(
+                text = when {
+                    animated >= 1f -> "[ COMPLETE ]"
+                    animated <= 0f -> "[ STANDBY ]"
+                    else -> "[ FEEDING ]"
+                },
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    color = HudColors.Steel,
+                ),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(16.dp)
+                .clip(hudCutShape(5.dp))
+                .background(HudColors.Terminal)
+                .border(
+                    BorderStroke(1.dp, HudColors.SteelDim.copy(alpha = 0.5f)),
+                    hudCutShape(5.dp),
+                )
+                .drawBehind {
+                    val segments = 24
+                    repeat(segments + 1) { i ->
+                        val x = size.width * i / segments
+                        drawLine(
+                            color = HudColors.SteelDim.copy(alpha = 0.55f),
+                            start = Offset(x, 0f),
+                            end = Offset(x, size.height),
+                            strokeWidth = 1f,
+                        )
+                    }
+                },
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(animated)
+                    .clip(hudCutShape(5.dp))
+                    .background(
+                        androidx.compose.ui.graphics.Brush.horizontalGradient(
+                            colors = listOf(HudColors.DarkRed, barColor, HudColors.BloodHot),
+                        ),
+                    )
+                    .graphicsLayer {
+                        shadowElevation = 14f
+                        ambientShadowColor = barColor
+                        spotShadowColor = barColor
+                    },
             )
         }
     }
@@ -283,34 +477,58 @@ private fun InstallerStatusCard(installState: InstallUiState) {
 private fun InstallerSteps(phase: InstallPhase) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
+        shape = hudCutShape(12.dp),
+        border = BorderStroke(1.dp, HudColors.SteelDim.copy(alpha = 0.5f)),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            containerColor = HudColors.Plate,
+            contentColor = HudColors.Bone,
         ),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            HudHeader(left = "SEQUENCE", right = "04 PHASES")
             installerSteps.forEachIndexed { index, step ->
                 val stepState = stepState(phase, index)
+                val iconScale by animateFloatAsState(
+                    targetValue = when (stepState) {
+                        2 -> 1.1f
+                        1 -> 1f
+                        else -> 0.92f
+                    },
+                    animationSpec = androidx.compose.animation.core.spring(
+                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                        stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
+                    ),
+                    label = "step-pop-$index",
+                )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     Surface(
-                        modifier = Modifier.size(38.dp),
-                        shape = CircleShape,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .graphicsLayer {
+                                scaleX = iconScale
+                                scaleY = iconScale
+                                shadowElevation = if (stepState >= 1) 10f else 0f
+                                ambientShadowColor = HudColors.Blood
+                                spotShadowColor = HudColors.Blood
+                            },
+                        shape = hudCutShape(8.dp),
+                        border = BorderStroke(
+                            1.dp,
+                            if (stepState >= 1) HudColors.Blood.copy(alpha = 0.6f)
+                            else HudColors.SteelDim.copy(alpha = 0.4f),
+                        ),
                         color = if (stepState >= 1) {
-                            MaterialTheme.colorScheme.primary
+                            HudColors.DarkRed
                         } else {
-                            MaterialTheme.colorScheme.surfaceContainerHighest
+                            HudColors.Gunmetal
                         },
-                        contentColor = if (stepState >= 1) {
-                            MaterialTheme.colorScheme.onPrimary
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
+                        contentColor = HudColors.Bone,
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
@@ -324,18 +542,23 @@ private fun InstallerSteps(phase: InstallPhase) {
                         Text(
                             text = stringResource(step.title),
                             style = MaterialTheme.typography.titleSmall,
+                            color = HudColors.Bone,
                         )
                         Text(
                             text = stringResource(step.detail),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f),
+                            color = HudColors.BoneDim,
                         )
                     }
                     if (stepState == 1 && phase !in setOf(InstallPhase.Failed, InstallPhase.Ready)) {
                         LoadingIndicator(
                             modifier = Modifier.size(24.dp),
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = HudColors.Blood,
                         )
+                    } else if (stepState == 0) {
+                        HudLed(color = HudColors.SteelDim)
+                    } else {
+                        HudLed(color = HudColors.Blood)
                     }
                 }
             }
@@ -351,15 +574,26 @@ private fun InstallerLog(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
+        shape = hudCutShape(12.dp),
+        border = BorderStroke(1.dp, HudColors.SteelDim.copy(alpha = 0.5f)),
+        colors = CardDefaults.cardColors(
+            containerColor = HudColors.Terminal,
+            contentColor = HudColors.Bone,
+        ),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .hudScanlines(alpha = 0.08f)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(stringResource(R.string.install_live_progress), style = MaterialTheme.typography.titleMedium)
+            HudHeader(left = "FEED", right = "LIVE")
+            Text(
+                stringResource(R.string.install_live_progress),
+                style = MaterialTheme.typography.titleMedium,
+                color = HudColors.Blood,
+            )
             Text(
                 text = output.ifBlank { stringResource(R.string.install_preparing) },
                 modifier = Modifier
@@ -369,7 +603,7 @@ private fun InstallerLog(
                 fontFamily = FontFamily.Monospace,
                 fontSize = 12.sp,
                 lineHeight = 18.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = HudColors.Bone,
             )
         }
     }

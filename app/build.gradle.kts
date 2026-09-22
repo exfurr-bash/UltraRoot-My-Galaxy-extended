@@ -38,6 +38,31 @@ android {
         }
     }
 
+    signingConfigs {
+        // Signing credentials never live in the repo. Local dev can keep a
+        // release.keystore next to the project root; CI restores it from the
+        // KEYSTORE_BASE64 secret and passes passwords via env vars.
+        create("release") {
+            storeFile = file(System.getenv("KEYSTORE_PATH") ?: "../release.keystore")
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
+            keyAlias = System.getenv("KEY_ALIAS") ?: "release"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: ""
+        }
+    }
+
+    buildTypes {
+        release {
+            // Unsigned when no keystore is present (CI signs the APK later
+            // with apksigner); signed locally when release.keystore exists.
+            val releaseKeystore = signingConfigs.getByName("release").storeFile
+            if (releaseKeystore?.isFile == true) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+            isMinifyEnabled = false
+            isShrinkResources = false
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
@@ -45,6 +70,11 @@ android {
 
     packaging {
         jniLibs.useLegacyPackaging = true
+        // Exact payload profiles bind execution to the bundled root-helper hash.
+        // AGP normally strips packaged JNI ELF files in release builds, which changes
+        // the helper bytes after the workflow has verified them. Keep it byte-identical
+        // to the production payload feed.
+        jniLibs.keepDebugSymbols += "**/libcve43499root.so"
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
 }
@@ -71,11 +101,19 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("com.materialkolor:material-kolor:4.1.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+    implementation("androidx.navigation:navigation-compose:2.8.9")
+    implementation("com.airbnb.android:lottie-compose:6.5.0")
+    implementation("dev.chrisbanes.haze:haze:1.5.3")
+    implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("dev.rikka.shizuku:api:13.1.5")
     implementation("dev.rikka.shizuku:provider:13.1.5")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.80")
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.80")
+    implementation("org.bouncycastle:bctls-jdk18on:1.80")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20250517")
     androidTestImplementation("androidx.test:core-ktx:1.7.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test:runner:1.7.0")

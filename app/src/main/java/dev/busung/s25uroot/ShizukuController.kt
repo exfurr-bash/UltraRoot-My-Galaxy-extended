@@ -7,6 +7,7 @@ import java.io.InputStream
 import java.io.OutputStream
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import moe.shizuku.server.IRemoteProcess
 import moe.shizuku.server.IShizukuService
 import rikka.shizuku.Shizuku
@@ -20,6 +21,30 @@ object ShizukuController {
         Shizuku.pingBinder()
     } catch (_: Throwable) {
         false
+    }
+
+    /**
+     * Event-driven Binder wait used by boot coordination. It does not poll while
+     * the phone is sitting at boot waiting for another Shizuku starter to win.
+     */
+    suspend fun awaitRunning(timeoutMillis: Long): Boolean {
+        if (isRunning()) return true
+        val received = withTimeoutOrNull(timeoutMillis) {
+            suspendCancellableCoroutine<Boolean> { continuation ->
+                lateinit var listener: Shizuku.OnBinderReceivedListener
+                listener = Shizuku.OnBinderReceivedListener {
+                    if (continuation.isActive) {
+                        Shizuku.removeBinderReceivedListener(listener)
+                        continuation.resume(true)
+                    }
+                }
+                continuation.invokeOnCancellation {
+                    Shizuku.removeBinderReceivedListener(listener)
+                }
+                Shizuku.addBinderReceivedListenerSticky(listener)
+            }
+        }
+        return received == true || isRunning()
     }
 
     /**
@@ -69,6 +94,22 @@ object ShizukuController {
         val binder = Shizuku.getBinder()
             ?: throw IllegalStateException("Shizuku binder is not available")
         return RemoteProcess(IShizukuService.Stub.asInterface(binder).newProcess(cmd, env, dir))
+    }
+
+    /**
+     * Execute a short shell command through the already-running Shizuku server.
+     * This is the preferred post-root transport: when Shizuku is already alive
+     * there is no reason to open Wireless ADB merely to obtain another shell UID.
+     */
+    fun shell(command: String): LocalAdbClient.ShellResult {
+        val process = exec(arrayOf("/system/bin/sh", "-c", "$command 2>&1"))
+        return try {
+            val output = process.inputStream.bufferedReader().use { it.readText() }
+            val exitCode = process.waitFor()
+            LocalAdbClient.ShellResult(exitCode, output.trim())
+        } finally {
+            if (process.isAlive) process.destroy()
+        }
     }
 
     /**

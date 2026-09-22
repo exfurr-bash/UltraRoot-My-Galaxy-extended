@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="root_runtime_settings">Root automation</string>
+    <string name="diagnostic_boot_uptime_title">Diagnostic Launch Time</string>
+    <string name="diagnostic_boot_uptime_description">Minimum boot uptime before starting the CZG3 exploit. This setting does not enable diagnostics.</string>
+    <string name="diagnostic_uptime_default">120 seconds (default)</string>
+    <string name="diagnostic_uptime_seconds">%1$d seconds</string>
+    <string name="soft_reboot_title">Soft reboot after root</string>
+    <string name="soft_reboot_description">Automatically restart Android userspace with KernelSU after root succeeds.</string>
+    <string name="soft_reboot_starting">Starting KernelSU soft reboot</string>
+    <string name="soft_reboot_failed">Root succeeded, but soft reboot did not start: %1$s</string>
+    <string name="manual_payload_source_title" translatable="false">Payload source</string>
+    <string name="manual_payload_source_description" translatable="false">Manual Online downloads and verifies the current payload. Manual Offline uses only the last-known-good payload from a successful Manual Online run.</string>
+    <string name="manual_online" translatable="false">Manual Online</string>
+    <string name="manual_offline" translatable="false">Manual Offline</string>
+</resources>

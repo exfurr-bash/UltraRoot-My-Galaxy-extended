@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="launcher_background">#FFF8F0</color>
+    <!-- ULTRAKILL HUD: infernal dark base, blood-red accent. Visual only. -->
+    <color name="launcher_background">#0A0A0B</color>
+    <color name="hud_blood">#FF1A1A</color>
+    <color name="hud_vengeance">#E10600</color>
+    <color name="hud_void">#0A0A0B</color>
+    <color name="hud_gunmetal">#141416</color>
+    <color name="hud_plate">#1A1A1E</color>
+    <color name="hud_steel">#8A8F98</color>
+    <color name="hud_bone">#EDEDED</color>
 </resources>

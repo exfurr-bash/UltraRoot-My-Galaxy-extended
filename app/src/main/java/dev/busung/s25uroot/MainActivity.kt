@@ -19,9 +19,19 @@ import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -60,8 +70,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.BrightnessAuto
 import androidx.compose.material.icons.rounded.DarkMode
@@ -83,6 +95,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.AlertDialog
@@ -149,6 +162,37 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import dev.busung.s25uroot.ui.hud.BloodBurstLottie
+import dev.busung.s25uroot.ui.hud.BloodParticles
+import dev.busung.s25uroot.ui.hud.BrutalHaptic
+import dev.busung.s25uroot.ui.hud.HudBootIntro
+import dev.busung.s25uroot.ui.hud.HudColors
+import dev.busung.s25uroot.ui.hud.HudDamageFlash
+import dev.busung.s25uroot.ui.hud.HudTypewriter
+import dev.busung.s25uroot.ui.hud.HudMotion
+import dev.busung.s25uroot.ui.hud.HudSfx
+import dev.busung.s25uroot.ui.hud.StyleRankBadge
+import dev.busung.s25uroot.ui.hud.UltrakillTitle
+import dev.busung.s25uroot.ui.hud.brutalHaptic
+import dev.busung.s25uroot.ui.hud.hudAnimatedScanlines
+import dev.busung.s25uroot.ui.hud.hudBloodPulse
+import dev.busung.s25uroot.ui.hud.hudGlitch
+import dev.busung.s25uroot.ui.hud.hudShake
+import dev.busung.s25uroot.ui.hud.rememberHudSound
+import dev.busung.s25uroot.ui.hud.styleRankFor
+import dev.busung.s25uroot.ui.hud.HudCornerTicks
+import dev.busung.s25uroot.ui.hud.HudHeader
+import dev.busung.s25uroot.ui.hud.HudLed
+import dev.busung.s25uroot.ui.hud.HudSectionLabel
+import dev.busung.s25uroot.ui.hud.hudCutShape
+import dev.busung.s25uroot.ui.hud.hudPressScale
+import dev.busung.s25uroot.ui.hud.hudScanlines
+import dev.busung.s25uroot.ui.hud.hudVignette
 import dev.busung.s25uroot.ui.theme.RootMyGalaxyTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -165,15 +209,24 @@ class MainActivity : ComponentActivity() {
     private var themeMode by mutableStateOf(AppThemeMode.System)
     private var advancedMode by mutableStateOf(false)
     private var shizukuMode by mutableStateOf(false)
+    private var restartZygoteAfterRoot by mutableStateOf(false)
+    private var autoStartShizukuAfterRoot by mutableStateOf(true)
+    private var soundEnabled by mutableStateOf(true)
+    private var bootDone by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
+        bootDone = AppPreferences.bootSeen(this)
         enableEdgeToEdge()
         window.isNavigationBarContrastEnforced = false
         accentColor = AppPreferences.accentColor(this)
         themeMode = AppPreferences.themeMode(this)
         advancedMode = AppPreferences.advancedMode(this)
         shizukuMode = AppPreferences.shizukuMode(this)
+        restartZygoteAfterRoot = AppPreferences.restartZygoteAfterRoot(this)
+        autoStartShizukuAfterRoot = AppPreferences.autoStartShizukuAfterRoot(this)
+        soundEnabled = AppPreferences.soundEnabled(this)
         setContent {
             RootMyGalaxyTheme(accentColor = accentColor, themeMode = themeMode) {
                 RootApp(
@@ -182,6 +235,18 @@ class MainActivity : ComponentActivity() {
                     themeMode = themeMode,
                     advancedMode = advancedMode,
                     shizukuMode = shizukuMode,
+                    restartZygoteAfterRoot = restartZygoteAfterRoot,
+                    autoStartShizukuAfterRoot = autoStartShizukuAfterRoot,
+                    soundEnabled = soundEnabled,
+                    bootDone = bootDone,
+                    onBootDone = {
+                        AppPreferences.setBootSeen(this)
+                        bootDone = true
+                    },
+                    onSoundChanged = { enabled ->
+                        AppPreferences.setSoundEnabled(this, enabled)
+                        soundEnabled = enabled
+                    },
                     onAccentColorChanged = { color ->
                         AppPreferences.setAccentColor(this, color)
                         accentColor = color
@@ -198,12 +263,21 @@ class MainActivity : ComponentActivity() {
                         AppPreferences.setShizukuMode(this, enabled)
                         shizukuMode = enabled
                     },
-                    openInstaller = { profileId ->
+                    onRestartZygoteChanged = { enabled ->
+                        AppPreferences.setRestartZygoteAfterRoot(this, enabled)
+                        restartZygoteAfterRoot = enabled
+                    },
+                    onAutoStartShizukuChanged = { enabled ->
+                        AppPreferences.setAutoStartShizukuAfterRoot(this, enabled)
+                        autoStartShizukuAfterRoot = enabled
+                    },
+                    openInstaller = { profileId, mode ->
                         val installer = Intent(this, InstallActivity::class.java)
                             .putExtra(InstallActivity.EXTRA_INSTALL_REQUEST_ID, UUID.randomUUID().toString())
                         if (profileId != null) {
                             installer.putExtra(InstallActivity.EXTRA_PROFILE_ID, profileId)
                         }
+                        installer.putExtra(InstallActivity.EXTRA_ROOT_MODE, mode.name)
                         startActivity(installer)
                     },
                 )
@@ -273,6 +347,7 @@ private fun openShizukuManager(context: Context) {
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun RootApp(
     installViewModel: InstallViewModel,
@@ -280,11 +355,19 @@ private fun RootApp(
     themeMode: AppThemeMode,
     advancedMode: Boolean,
     shizukuMode: Boolean,
+    restartZygoteAfterRoot: Boolean,
+    autoStartShizukuAfterRoot: Boolean,
+    soundEnabled: Boolean,
+    bootDone: Boolean,
+    onBootDone: () -> Unit,
+    onSoundChanged: (Boolean) -> Unit,
     onAccentColorChanged: (AccentColor) -> Unit,
     onThemeModeChanged: (AppThemeMode) -> Unit,
     onAdvancedModeChanged: (Boolean) -> Unit,
     onShizukuModeChanged: (Boolean) -> Unit,
-    openInstaller: (String?) -> Unit,
+    onRestartZygoteChanged: (Boolean) -> Unit,
+    onAutoStartShizukuChanged: (Boolean) -> Unit,
+    openInstaller: (String?, RootMode) -> Unit,
 ) {
     val installState by installViewModel.state.collectAsStateWithLifecycle()
     val history by installViewModel.history.collectAsStateWithLifecycle()
@@ -298,6 +381,8 @@ private fun RootApp(
     val context = LocalContext.current
     val view = LocalView.current
     val scope = rememberCoroutineScope()
+    val sound = rememberHudSound()
+    val hazeState = remember { HazeState() }
     var updateStatus by remember { mutableStateOf<UpdateStatus>(UpdateStatus.Idle) }
     var updateCardDismissed by remember { mutableStateOf(false) }
     val checkForUpdate: () -> Unit = {
@@ -338,6 +423,7 @@ private fun RootApp(
         TargetSelectionSheet(
             device = device,
             catalog = targetCatalog,
+            hazeState = hazeState,
             onDismiss = { showTargetPicker = false },
             onRetry = installViewModel::loadTargetCatalog,
             onNext = { profile ->
@@ -421,6 +507,13 @@ private fun RootApp(
     }
 
     if (showInstallConfirmation) {
+        var rootMode by remember { mutableStateOf(RootMode.Online) }
+        val offlineProfile = remember(showInstallConfirmation) {
+            runCatching { KnownGoodPayloadStore.load(context).profile }.getOrNull()
+        }
+        if (offlineProfile == null && rootMode == RootMode.Offline) {
+            rootMode = RootMode.Online
+        }
         AlertDialog(
             onDismissRequest = { showInstallConfirmation = false },
             icon = { Icon(Icons.Rounded.Security, contentDescription = null) },
@@ -428,12 +521,63 @@ private fun RootApp(
                 DialogDimAmount(0.34f)
                 Text(stringResource(R.string.install_confirm_title))
             },
-            text = { Text(stringResource(R.string.install_confirm_body)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(stringResource(R.string.install_confirm_body))
+                    HudHeader(left = "MODE", right = if (rootMode == RootMode.Online) "NET" else "CACHE")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+                    ) {
+                        RootMode.entries.forEachIndexed { index, mode ->
+                            val enabled = mode == RootMode.Online || offlineProfile != null
+                            ToggleButton(
+                                checked = rootMode == mode,
+                                onCheckedChange = {
+                                    clickHaptic(view)
+                                    sound.play(HudSfx.Click, soundEnabled)
+                                    rootMode = mode
+                                },
+                                enabled = enabled,
+                                modifier = Modifier.weight(1f),
+                                colors = ToggleButtonDefaults.toggleButtonColors(
+                                    containerColor = HudColors.Plate,
+                                    checkedContainerColor = HudColors.DarkRed,
+                                    checkedContentColor = HudColors.Bone,
+                                ),
+                                shapes = when (index) {
+                                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                    else -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                },
+                            ) {
+                                Text(
+                                    stringResource(
+                                        when (mode) {
+                                            RootMode.Online -> R.string.root_mode_online
+                                            RootMode.Offline -> R.string.root_mode_offline
+                                        },
+                                    ),
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = when {
+                            rootMode == RootMode.Offline && offlineProfile != null ->
+                                stringResource(R.string.offline_cached_format, offlineProfile.displayName)
+                            else -> stringResource(R.string.root_mode_offline_unavailable)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = HudColors.BoneDim,
+                    )
+                }
+            },
             confirmButton = {
                 FilledTonalButton(onClick = {
                     clickHaptic(view)
                     showInstallConfirmation = false
-                    openInstaller(selectedProfile?.profileId)
+                    openInstaller(selectedProfile?.profileId, rootMode)
                     selectedProfile = null
                 }) {
                     Text(stringResource(R.string.action_confirm))
@@ -450,67 +594,143 @@ private fun RootApp(
         )
     }
 
-    Scaffold(
-        bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                tonalElevation = 0.dp,
-            ) {
-                AppPage.entries.forEach { page ->
-                    NavigationBarItem(
-                        selected = selectedPage == page,
-                        onClick = {
-                            clickHaptic(view)
-                            selectedPage = page
-                        },
-                        modifier = Modifier.padding(top = 4.dp),
-                        icon = { Icon(page.icon, contentDescription = null) },
-                        label = { Text(stringResource(page.label)) },
-                    )
+    var damageFlash by remember { mutableStateOf(0f) }
+    LaunchedEffect(damageFlash) {
+        if (damageFlash > 0f) {
+            delay(180)
+            damageFlash = 0f
+        }
+    }
+    // Punch the screen when install fails or succeeds from background refresh.
+    LaunchedEffect(installState.phase) {
+        if (installState.phase == InstallPhase.Failed) damageFlash = 0.4f
+    }
+
+    SharedTransitionLayout {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(HudColors.Void)
+                .hazeSource(hazeState)
+                .hudBloodPulse(installState.busy),
+        ) {
+            Scaffold(
+                bottomBar = {
+                    NavigationBar(
+                        modifier = Modifier.hazeEffect(
+                            hazeState,
+                            style = HazeStyle(
+                                backgroundColor = HudColors.Gunmetal.copy(alpha = 0.72f),
+                                blurRadius = 20.dp,
+                                tints = emptyList(),
+                            ),
+                        ),
+                        containerColor = Color.Transparent,
+                        tonalElevation = 0.dp,
+                    ) {
+                        AppPage.entries.forEach { page ->
+                            val selected = selectedPage == page
+                            NavigationBarItem(
+                                selected = selected,
+                                onClick = {
+                                    clickHaptic(view)
+                                    sound.play(HudSfx.Click, soundEnabled)
+                                    if (selectedPage != page) {
+                                        selectedPage = page
+                                    }
+                                },
+                                modifier = Modifier.padding(top = 4.dp),
+                                icon = {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        if (selected) {
+                                            HudLed(
+                                                color = HudColors.Blood,
+                                                blinking = installState.busy,
+                                                modifier = Modifier.align(Alignment.TopEnd),
+                                            )
+                                        }
+                                        Icon(page.icon, contentDescription = null)
+                                    }
+                                },
+                                label = { Text(stringResource(page.label)) },
+                            )
+                        }
+                    }
+                },
+                containerColor = Color.Transparent,
+            ) { padding ->
+                AnimatedContent(
+                    targetState = selectedPage,
+                    label = "page",
+                    transitionSpec = {
+                        val forward = targetState.ordinal > initialState.ordinal
+                        val slideDir = if (forward) 1 else -1
+                        (slideInHorizontally(
+                            animationSpec = tween(HudMotion.ULTRA_ENTER),
+                            initialOffsetX = { it / 4 * slideDir },
+                        ) + fadeIn(tween(HudMotion.MEDIUM)) + scaleIn(
+                            initialScale = 0.96f,
+                            animationSpec = tween(HudMotion.ULTRA_ENTER),
+                        )) togetherWith
+                            (slideOutHorizontally(
+                                animationSpec = tween(HudMotion.MEDIUM),
+                                targetOffsetX = { -it / 4 * slideDir },
+                            ) + fadeOut(tween(HudMotion.MEDIUM)))
+                    },
+                ) { page ->
+                    when (page) {
+                        AppPage.Overview -> OverviewPage(
+                            padding = padding,
+                            device = device,
+                            installState = installState,
+                            updateStatus = updateStatus,
+                            updateCardDismissed = updateCardDismissed,
+                            onDismissUpdateCard = { updateCardDismissed = true },
+                            onStartDownload = startDownload,
+                            soundEnabled = soundEnabled,
+                            onInstall = {
+                                selectedProfile = null
+                                if (advancedMode) {
+                                    showTargetPicker = true
+                                    installViewModel.loadTargetCatalog()
+                                } else {
+                                    showInstallConfirmation = true
+                                }
+                            },
+                        )
+                        AppPage.History -> HistoryPage(
+                            padding,
+                            history,
+                            sharedScope = this@SharedTransitionLayout,
+                            onDeleteEntries = installViewModel::deleteHistoryEntries,
+                        )
+                        AppPage.Settings -> SettingsPage(
+                            padding = padding,
+                            accentColor = accentColor,
+                            themeMode = themeMode,
+                            advancedMode = advancedMode,
+                            shizukuMode = shizukuMode,
+                            rootActive = installState.phase == InstallPhase.Installed,
+                            restartZygoteAfterRoot = restartZygoteAfterRoot,
+                            autoStartShizukuAfterRoot = autoStartShizukuAfterRoot,
+                            soundEnabled = soundEnabled,
+                            onSoundChanged = onSoundChanged,
+                            updateStatus = updateStatus,
+                            onCheckForUpdate = checkForUpdate,
+                            onStartDownload = startDownload,
+                            onAccentColorChanged = onAccentColorChanged,
+                            onThemeModeChanged = onThemeModeChanged,
+                            onAdvancedModeChanged = onAdvancedModeChanged,
+                            onShizukuModeChanged = onShizukuModeChanged,
+                            onRestartZygoteChanged = onRestartZygoteChanged,
+                            onAutoStartShizukuChanged = onAutoStartShizukuChanged,
+                        )
+                    }
                 }
             }
-        },
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-    ) { padding ->
-        AnimatedContent(targetState = selectedPage, label = "page") { page ->
-            when (page) {
-                AppPage.Overview -> OverviewPage(
-                    padding = padding,
-                    device = device,
-                    installState = installState,
-                    updateStatus = updateStatus,
-                    updateCardDismissed = updateCardDismissed,
-                    onDismissUpdateCard = { updateCardDismissed = true },
-                    onStartDownload = startDownload,
-                    onInstall = {
-                        selectedProfile = null
-                        if (advancedMode) {
-                            showTargetPicker = true
-                            installViewModel.loadTargetCatalog()
-                        } else {
-                            showInstallConfirmation = true
-                        }
-                    },
-                )
-                AppPage.History -> HistoryPage(
-                    padding,
-                    history,
-                    onDeleteEntries = installViewModel::deleteHistoryEntries,
-                )
-                AppPage.Settings -> SettingsPage(
-                    padding = padding,
-                    accentColor = accentColor,
-                    themeMode = themeMode,
-                    advancedMode = advancedMode,
-                    shizukuMode = shizukuMode,
-                    updateStatus = updateStatus,
-                    onCheckForUpdate = checkForUpdate,
-                    onStartDownload = startDownload,
-                    onAccentColorChanged = onAccentColorChanged,
-                    onThemeModeChanged = onThemeModeChanged,
-                    onAdvancedModeChanged = onAdvancedModeChanged,
-                    onShizukuModeChanged = onShizukuModeChanged,
-                )
+            HudDamageFlash(alpha = damageFlash)
+            if (!bootDone) {
+                HudBootIntro(onDone = onBootDone)
             }
         }
     }
@@ -557,35 +777,62 @@ private fun OverviewPage(
     updateCardDismissed: Boolean,
     onDismissUpdateCard: () -> Unit,
     onStartDownload: (UpdateInfo) -> Unit,
+    soundEnabled: Boolean,
     onInstall: () -> Unit,
 ) {
+    val sound = rememberHudSound()
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(padding),
+        modifier = Modifier.fillMaxSize().padding(padding).hudAnimatedScanlines().hudBloodPulse(installState.busy),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 54.dp, bottom = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            AnimatedVisibility(
+                visible = true,
+                enter = HudMotion.brutalEnter(0),
+                label = "hero-enter",
             ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_app_logo),
-                    contentDescription = null,
-                    modifier = Modifier.size(36.dp),
-                )
-                Text(
-                    text = stringResource(R.string.app_name),
-                    style = MaterialTheme.typography.headlineLarge,
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                AppVersionText(
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 54.dp, bottom = 14.dp)
+                        .hudGlitch(if (installState.phase == InstallPhase.Failed) 1f else 0f),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    HudHeader(left = "SYS", right = if (installState.busy) "RITUAL ACTIVE" else "ONLINE")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        HudLed(
+                            color = if (installState.busy) HudColors.WarningAmber else HudColors.Blood,
+                            blinking = installState.busy,
+                        )
+                        Icon(
+                            painter = painterResource(R.drawable.ic_app_logo),
+                            contentDescription = null,
+                            modifier = Modifier.size(36.dp),
+                            tint = HudColors.Blood,
+                        )
+                        AppVersionText(
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = HudColors.Steel.copy(alpha = 0.7f),
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        StyleRankBadge(rank = styleRankFor(installState.phase))
+                    }
+                    UltrakillTitle(
+                        text = stringResource(R.string.app_name),
+                        sub = "blood is fuel // hell is full",
+                    )
+                    HudTypewriter(
+                        text = if (installState.busy) "RITUAL IN PROGRESS — KEEP THIS VESSEL AWAKE" else installState.message.ifBlank { "AWAITING ORDERS, SINNER" },
+                        style = MaterialTheme.typography.labelLarge,
+                        color = HudColors.BoneDim,
+                        charsPerSecond = 70,
+                    )
+                }
             }
         }
         if (
@@ -593,16 +840,46 @@ private fun OverviewPage(
             updateStatus.info != null
         ) {
             item {
-                UpdateCard(
-                    status = updateStatus,
-                    onDismiss = onDismissUpdateCard,
-                    onStartDownload = onStartDownload,
-                )
+                AnimatedVisibility(
+                    visible = true,
+                    enter = HudMotion.brutalEnter(HudMotion.STAGGER),
+                    label = "update-enter",
+                ) {
+                    UpdateCard(
+                        status = updateStatus,
+                        onDismiss = onDismissUpdateCard,
+                        onStartDownload = onStartDownload,
+                    )
+                }
             }
         }
-        item { InstallStatusCard(installState, onInstall) }
-        item { DeviceCard(device) }
-        item { HowItWorksCard() }
+        item {
+            AnimatedVisibility(
+                visible = true,
+                enter = HudMotion.brutalEnter(HudMotion.STAGGER * 2),
+                label = "install-enter",
+            ) {
+                InstallStatusCard(installState, onInstall, soundEnabled)
+            }
+        }
+        item {
+            AnimatedVisibility(
+                visible = true,
+                enter = HudMotion.brutalEnter(HudMotion.STAGGER * 3),
+                label = "device-enter",
+            ) {
+                DeviceCard(device)
+            }
+        }
+        item {
+            AnimatedVisibility(
+                visible = true,
+                enter = HudMotion.brutalEnter(HudMotion.STAGGER * 4),
+                label = "how-enter",
+            ) {
+                HowItWorksCard()
+            }
+        }
     }
 }
 
@@ -636,16 +913,18 @@ private fun UpdateCard(
     if (info == null) return
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
+        shape = hudCutShape(12.dp),
+        border = BorderStroke(1.dp, HudColors.Blood.copy(alpha = 0.55f)),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+            containerColor = HudColors.PlateHigh,
+            contentColor = HudColors.Bone,
         ),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            HudHeader(left = "UPDATE", right = "ALERT")
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -654,6 +933,7 @@ private fun UpdateCard(
                     Icons.Rounded.SystemUpdate,
                     contentDescription = null,
                     modifier = Modifier.size(22.dp),
+                    tint = HudColors.Blood,
                 )
                 Text(
                     text = stringResource(R.string.updater_available_title),
@@ -710,16 +990,23 @@ private fun UpdateCard(
 private fun HowItWorksCard() {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
+        shape = hudCutShape(12.dp),
+        border = BorderStroke(1.dp, HudColors.SteelDim.copy(alpha = 0.5f)),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            containerColor = HudColors.Plate,
+            contentColor = HudColors.Bone,
         ),
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(stringResource(R.string.how_it_works), style = MaterialTheme.typography.titleMedium)
+            HudHeader(left = "PROTOCOL", right = "04 STEPS")
+            Text(
+                stringResource(R.string.how_it_works),
+                style = MaterialTheme.typography.titleMedium,
+                color = HudColors.Bone,
+            )
             installerSteps.forEach { step ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -727,20 +1014,25 @@ private fun HowItWorksCard() {
                 ) {
                     Surface(
                         modifier = Modifier.size(36.dp),
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        shape = hudCutShape(8.dp),
+                        color = HudColors.DarkRed,
+                        contentColor = HudColors.Bone,
+                        border = BorderStroke(1.dp, HudColors.Blood.copy(alpha = 0.4f)),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(step.icon, contentDescription = null, modifier = Modifier.size(20.dp))
                         }
                     }
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(step.title), style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            stringResource(step.title),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = HudColors.Bone,
+                        )
                         Text(
                             stringResource(step.detail),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = HudColors.BoneDim,
                         )
                     }
                 }
@@ -750,97 +1042,138 @@ private fun HowItWorksCard() {
 }
 
 @Composable
-private fun InstallStatusCard(installState: InstallUiState, onInstall: () -> Unit) {
+private fun InstallStatusCard(installState: InstallUiState, onInstall: () -> Unit, soundEnabled: Boolean) {
     val context = LocalContext.current
     val view = LocalView.current
+    val sound = rememberHudSound()
     val interactionSource = remember { MutableInteractionSource() }
     val uriHandler = LocalUriHandler.current
     val managerInstalled = remember(installState) { isKernelSuManagerInstalled(context) }
+    val failed = installState.phase == InstallPhase.Failed
+    val installed = installState.phase == InstallPhase.Installed
+    val borderColor by animateColorAsState(
+        targetValue = when {
+            failed -> HudColors.WarningAmber
+            installed -> HudColors.BloodHot
+            installState.busy -> HudColors.Blood
+            else -> HudColors.Blood.copy(alpha = 0.65f)
+        },
+        animationSpec = tween<Color>(HudMotion.MEDIUM),
+        label = "install-border",
+    )
     Card(
         onClick = {
-            clickHaptic(view)
             when {
-                installState.busy -> Unit
-                installState.phase == InstallPhase.Installed -> {
+                installState.busy -> brutalHaptic(view, BrutalHaptic.Click)
+                installed -> {
+                    brutalHaptic(view, BrutalHaptic.Success)
+                    sound.play(HudSfx.Confirm, soundEnabled)
                     if (managerInstalled) {
                         openKernelSuManager(context)
                     } else {
                         uriHandler.openUri(KERNEL_SU_MANAGER_URL)
                     }
                 }
-                else -> onInstall()
+                else -> {
+                    brutalHaptic(view, BrutalHaptic.Heavy)
+                    sound.play(HudSfx.Phase, soundEnabled)
+                    onInstall()
+                }
             }
         },
-        modifier = Modifier.fillMaxWidth().animateContentSize(),
-        shape = expressiveClickableCardShape(interactionSource),
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize()
+            .hudPressScale(interactionSource)
+            .hudShake(trigger = installState.phase.takeIf { failed }, intensity = 16f),
+        shape = hudCutShape(12.dp),
+        border = BorderStroke(2.dp, borderColor),
         interactionSource = interactionSource,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            containerColor = HudColors.PlateHigh,
+            contentColor = HudColors.Bone,
         ),
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            when {
-                installState.busy -> LoadingIndicator(
-                    modifier = Modifier.size(44.dp),
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-                installState.phase == InstallPhase.Installed -> Icon(
-                    Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(44.dp),
-                )
-                installState.phase == InstallPhase.Failed -> Icon(
-                    Icons.Rounded.Warning, contentDescription = null, modifier = Modifier.size(44.dp),
-                )
-                else -> Icon(
-                    Icons.Rounded.Warning, contentDescription = null, modifier = Modifier.size(44.dp),
+        Box(modifier = Modifier.fillMaxWidth()) {
+            HudCornerTicks(modifier = Modifier.matchParentSize())
+            BloodParticles(burstKey = installState.phase.takeIf { installed })
+            if (installed) {
+                BloodBurstLottie(
+                    burstKey = installState.phase,
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                    size = 140.dp,
                 )
             }
-            Column(modifier = Modifier.weight(1f)) {
-                if (installState.phase == InstallPhase.Installed) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_kernelsu),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
+            Row(
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                when {
+                    installState.busy -> LoadingIndicator(
+                        modifier = Modifier.size(44.dp),
+                        color = HudColors.Blood,
+                    )
+                    installed -> Icon(
+                        Icons.Rounded.CheckCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(44.dp),
+                        tint = HudColors.BloodHot,
+                    )
+                    failed -> Icon(
+                        Icons.Rounded.Warning,
+                        contentDescription = null,
+                        modifier = Modifier.size(44.dp),
+                        tint = HudColors.WarningAmber,
+                    )
+                    else -> Icon(
+                        Icons.Rounded.Warning, contentDescription = null, modifier = Modifier.size(44.dp),
+                        tint = HudColors.Blood,
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    if (installed) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_kernelsu),
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = HudColors.BloodHot,
+                            )
+                            Text(
+                                text = stringResource(R.string.status_ksu_active),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                        }
+                    } else {
                         Text(
-                            text = stringResource(R.string.status_ksu_active),
+                            text = when (installState.phase) {
+                                InstallPhase.Ready -> stringResource(R.string.status_not_installed)
+                                else -> installState.message
+                            },
                             style = MaterialTheme.typography.titleMedium,
                         )
                     }
-                } else {
                     Text(
                         text = when (installState.phase) {
-                            InstallPhase.Ready -> stringResource(R.string.status_not_installed)
-                            else -> installState.message
+                            InstallPhase.Installed -> stringResource(
+                                if (managerInstalled) {
+                                    R.string.install_tap_open_manager
+                                } else {
+                                    R.string.install_tap_manager
+                                },
+                            )
+                            InstallPhase.Failed -> stringResource(R.string.install_tap_retry)
+                            else -> stringResource(R.string.install_tap_start)
                         },
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = HudColors.BoneDim,
+                        maxLines = 1,
                     )
                 }
-                Text(
-                    text = when (installState.phase) {
-                        InstallPhase.Installed -> stringResource(
-                            if (managerInstalled) {
-                                R.string.install_tap_open_manager
-                            } else {
-                                R.string.install_tap_manager
-                            },
-                        )
-                        InstallPhase.Failed -> stringResource(R.string.install_tap_retry)
-                        else -> stringResource(R.string.install_tap_start)
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.86f),
-                    maxLines = 1,
-                )
             }
         }
     }
@@ -852,15 +1185,18 @@ private fun DeviceCard(device: DeviceSnapshot) {
     var kernelExpanded by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier.fillMaxWidth().animateContentSize(),
-        shape = MaterialTheme.shapes.large,
+        shape = hudCutShape(12.dp),
+        border = BorderStroke(1.dp, HudColors.SteelDim.copy(alpha = 0.5f)),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            containerColor = HudColors.Plate,
+            contentColor = HudColors.Bone,
         ),
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            HudHeader(left = "DEVICE", right = "SCAN")
             InfoRow(Icons.Rounded.Memory, stringResource(R.string.device), "${device.manufacturer} ${device.model} (${device.device})")
             InfoRow(Icons.Rounded.Code, stringResource(R.string.firmware), device.buildId)
             InfoRow(Icons.Rounded.Info, stringResource(R.string.system), "Android ${device.androidRelease} (API ${device.sdk})")
@@ -896,21 +1232,24 @@ private fun InfoRow(
         },
         horizontalArrangement = Arrangement.spacedBy(13.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Icon(icon, contentDescription = null, tint = HudColors.Blood)
         Column {
-            Text(label, style = MaterialTheme.typography.titleSmall)
-            Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(label, style = MaterialTheme.typography.titleSmall, color = HudColors.Bone)
+            Text(value, style = MaterialTheme.typography.bodyMedium, color = HudColors.BoneDim)
         }
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun HistoryPage(
     padding: PaddingValues,
     history: List<InstallHistoryEntry>,
+    sharedScope: SharedTransitionScope,
     onDeleteEntries: (Set<String>) -> Unit,
 ) {
     val view = LocalView.current
+    val context = LocalContext.current
     var selectedHistoryId by remember { mutableStateOf<String?>(null) }
     var selectionIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var pendingDeleteIds by remember { mutableStateOf<Set<String>?>(null) }
@@ -920,6 +1259,11 @@ private fun HistoryPage(
         .map { it.id }
         .toSet()
     val selecting = selectionIds.isNotEmpty()
+    val exportZipLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        result.data?.data?.let { uri -> HistoryLogExporter.save(context, uri, history) }
+    }
     BackHandler(enabled = selectedEntry != null || selecting) {
         if (selecting) {
             selectionIds = emptySet()
@@ -962,11 +1306,19 @@ private fun HistoryPage(
         targetState = selectedEntry,
         contentKey = { it?.id ?: "history-list" },
         label = "history-detail",
+        transitionSpec = {
+            (fadeIn(tween(HudMotion.MEDIUM)) + scaleIn(
+                initialScale = 0.96f,
+                animationSpec = tween(HudMotion.ULTRA_ENTER),
+            )) togetherWith fadeOut(tween(HudMotion.FAST))
+        },
     ) { entry ->
         if (entry == null) {
             HistoryList(
                 padding = padding,
                 history = history,
+                sharedScope = sharedScope,
+                animatedScope = this,
                 selectionIds = selectionIds,
                 selectableIds = selectableIds,
                 onToggleSelection = { id ->
@@ -986,21 +1338,38 @@ private fun HistoryPage(
                 onClearSelection = { selectionIds = emptySet() },
                 onEntryClick = { selectedHistoryId = it.id },
                 onDeleteSelected = { pendingDeleteIds = selectionIds },
+                onExportZip = {
+                    exportZipLauncher.launch(
+                        Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "application/zip"
+                            putExtra(
+                                Intent.EXTRA_TITLE,
+                                HistoryLogExporter.archiveFileName(history),
+                            )
+                        },
+                    )
+                },
             )
         } else {
             HistoryDetail(
                 padding = padding,
                 entry = entry,
+                sharedScope = sharedScope,
+                animatedScope = this,
                 onBack = { selectedHistoryId = null },
             )
         }
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun HistoryList(
     padding: PaddingValues,
     history: List<InstallHistoryEntry>,
+    sharedScope: SharedTransitionScope,
+    animatedScope: androidx.compose.animation.AnimatedVisibilityScope,
     selectionIds: Set<String>,
     selectableIds: Set<String>,
     onToggleSelection: (String) -> Unit,
@@ -1008,10 +1377,14 @@ private fun HistoryList(
     onClearSelection: () -> Unit,
     onEntryClick: (InstallHistoryEntry) -> Unit,
     onDeleteSelected: () -> Unit,
+    onExportZip: () -> Unit,
 ) {
     val view = LocalView.current
     val selecting = selectionIds.isNotEmpty()
-    Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+    val hasCompleted = remember(history) {
+        history.any { it.result != InstallRunResult.Running }
+    }
+    Box(modifier = Modifier.fillMaxSize().padding(padding).hudScanlines().hudVignette()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
@@ -1023,6 +1396,8 @@ private fun HistoryList(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HudHeader(left = "ARCHIVE", right = "RUNS")
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -1034,7 +1409,20 @@ private fun HistoryList(
                         Text(
                             text = stringResource(R.string.history_title),
                             style = MaterialTheme.typography.headlineLarge,
+                            color = HudColors.Bone,
                         )
+                    }
+                    if (hasCompleted && !selecting) {
+                        IconButton(onClick = {
+                            clickHaptic(view)
+                            onExportZip()
+                        }) {
+                            Icon(
+                                Icons.Rounded.CloudDownload,
+                                contentDescription = stringResource(R.string.export_logs_zip),
+                                tint = HudColors.Blood,
+                            )
+                        }
                     }
                     AnimatedVisibility(
                         visible = selecting,
@@ -1063,14 +1451,21 @@ private fun HistoryList(
                         }
                     }
                 }
+                }
             }
             if (history.isEmpty()) {
                 item { EmptyHistoryCard() }
             } else {
                 itemsIndexed(history, key = { _, entry -> entry.id }) { _, entry ->
-                    HistoryEntryCard(
-                        entry = entry,
-                        selectionMode = selecting,
+                    with(sharedScope) {
+                        HistoryEntryCard(
+                            entry = entry,
+                            heroModifier = Modifier
+                                .sharedBounds(
+                                    rememberSharedContentState(key = "history-${entry.id}"),
+                                    animatedVisibilityScope = animatedScope,
+                                ),
+                            selectionMode = selecting,
                         isSelected = entry.id in selectionIds,
                         selectable = entry.id in selectableIds,
                         onClick = {
@@ -1083,7 +1478,8 @@ private fun HistoryList(
                         onLongClick = {
                             if (entry.id in selectableIds) onToggleSelection(entry.id)
                         },
-                    )
+                        )
+                    }
                 }
             }
         }
@@ -1109,9 +1505,11 @@ private fun HistoryList(
 private fun EmptyHistoryCard() {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
+        shape = hudCutShape(12.dp),
+        border = BorderStroke(1.dp, HudColors.SteelDim.copy(alpha = 0.5f)),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            containerColor = HudColors.Plate,
+            contentColor = HudColors.Bone,
         ),
     ) {
         Row(
@@ -1119,13 +1517,18 @@ private fun EmptyHistoryCard() {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Icon(Icons.Rounded.History, contentDescription = null, modifier = Modifier.size(32.dp))
+            Icon(
+                Icons.Rounded.History,
+                contentDescription = null,
+                modifier = Modifier.size(32.dp),
+                tint = HudColors.Blood,
+            )
             Column {
                 Text(stringResource(R.string.history_empty_title), style = MaterialTheme.typography.titleMedium)
                 Text(
                     stringResource(R.string.history_empty_description),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = HudColors.BoneDim,
                 )
             }
         }
@@ -1140,6 +1543,7 @@ private fun HistoryEntryCard(
     selectable: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    heroModifier: Modifier = Modifier,
 ) {
     val view = LocalView.current
     val interactionSource = remember { MutableInteractionSource() }
@@ -1151,7 +1555,7 @@ private fun HistoryEntryCard(
         label = "history-card-border",
     )
     Card(
-        modifier = Modifier
+        modifier = heroModifier
             .fillMaxWidth()
             .clip(shape)
             .combinedClickable(
@@ -1167,9 +1571,9 @@ private fun HistoryEntryCard(
             ),
         shape = shape,
         border = if (borderWidth > 0.dp) {
-            BorderStroke(borderWidth, MaterialTheme.colorScheme.secondary)
+            BorderStroke(borderWidth, HudColors.Blood)
         } else {
-            null
+            BorderStroke(1.dp, HudColors.SteelDim.copy(alpha = 0.35f))
         },
         colors = CardDefaults.cardColors(
             containerColor = containerColor,
@@ -1215,10 +1619,13 @@ private fun HistoryEntryCard(
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun HistoryDetail(
     padding: PaddingValues,
     entry: InstallHistoryEntry,
+    sharedScope: SharedTransitionScope,
+    animatedScope: androidx.compose.animation.AnimatedVisibilityScope,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -1229,11 +1636,13 @@ private fun HistoryDetail(
         result.data?.data?.let { uri -> saveRunLog(context, uri, entry) }
     }
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(padding),
+        modifier = Modifier.fillMaxSize().padding(padding).hudScanlines().hudVignette(),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                HudHeader(left = "LOG", right = "DETAIL")
             Row(
                 modifier = Modifier.padding(top = 12.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1248,6 +1657,7 @@ private fun HistoryDetail(
                 Text(
                     stringResource(R.string.history_detail_title),
                     style = MaterialTheme.typography.headlineLarge,
+                    color = HudColors.Bone,
                     modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = {
@@ -1263,14 +1673,27 @@ private fun HistoryDetail(
                     Icon(Icons.Rounded.Save, contentDescription = stringResource(R.string.export_log))
                 }
             }
+            }
         }
-        item { HistoryResultCard(entry) }
+        item {
+            with(sharedScope) {
+                HistoryResultCard(
+                    entry = entry,
+                    heroModifier = Modifier.sharedBounds(
+                        rememberSharedContentState(key = "history-${entry.id}"),
+                        animatedVisibilityScope = animatedScope,
+                    ),
+                )
+            }
+        }
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
+                shape = hudCutShape(12.dp),
+                border = BorderStroke(1.dp, HudColors.SteelDim.copy(alpha = 0.5f)),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    containerColor = HudColors.Terminal,
+                    contentColor = HudColors.Bone,
                 ),
             ) {
                 Text(
@@ -1278,7 +1701,7 @@ private fun HistoryDetail(
                     modifier = Modifier.padding(16.dp),
                     style = MaterialTheme.typography.bodySmall,
                     fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = HudColors.Bone,
                 )
             }
         }
@@ -1286,12 +1709,13 @@ private fun HistoryDetail(
 }
 
 @Composable
-private fun HistoryResultCard(entry: InstallHistoryEntry) {
+private fun HistoryResultCard(entry: InstallHistoryEntry, heroModifier: Modifier = Modifier) {
     val containerColor = historyResultContainerColor(entry.result)
     val contentColor = historyResultContentColor(entry.result)
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
+        modifier = heroModifier.fillMaxWidth(),
+        shape = hudCutShape(12.dp),
+        border = BorderStroke(1.dp, HudColors.Blood.copy(alpha = 0.45f)),
         colors = CardDefaults.cardColors(containerColor = containerColor, contentColor = contentColor),
     ) {
         Row(
@@ -1354,17 +1778,13 @@ private fun historyResultIcon(result: InstallRunResult): ImageVector = when (res
 
 @Composable
 private fun historyResultContainerColor(result: InstallRunResult): Color = when (result) {
-    InstallRunResult.Running -> MaterialTheme.colorScheme.tertiaryContainer
-    InstallRunResult.Succeeded -> MaterialTheme.colorScheme.primaryContainer
-    InstallRunResult.Failed -> MaterialTheme.colorScheme.errorContainer
+    InstallRunResult.Running -> HudColors.PlateHigh
+    InstallRunResult.Succeeded -> HudColors.DarkRed
+    InstallRunResult.Failed -> Color(0xFF2A0E0E)
 }
 
 @Composable
-private fun historyResultContentColor(result: InstallRunResult): Color = when (result) {
-    InstallRunResult.Running -> MaterialTheme.colorScheme.onTertiaryContainer
-    InstallRunResult.Succeeded -> MaterialTheme.colorScheme.onPrimaryContainer
-    InstallRunResult.Failed -> MaterialTheme.colorScheme.onErrorContainer
-}
+private fun historyResultContentColor(result: InstallRunResult): Color = HudColors.Bone
 
 @Composable
 private fun formatHistoryTime(timestamp: Long): String {
@@ -1406,6 +1826,11 @@ private fun SettingsPage(
     themeMode: AppThemeMode,
     advancedMode: Boolean,
     shizukuMode: Boolean,
+    rootActive: Boolean,
+    restartZygoteAfterRoot: Boolean,
+    autoStartShizukuAfterRoot: Boolean,
+    soundEnabled: Boolean,
+    onSoundChanged: (Boolean) -> Unit,
     updateStatus: UpdateStatus,
     onCheckForUpdate: () -> Unit,
     onStartDownload: (UpdateInfo) -> Unit,
@@ -1413,16 +1838,21 @@ private fun SettingsPage(
     onThemeModeChanged: (AppThemeMode) -> Unit,
     onAdvancedModeChanged: (Boolean) -> Unit,
     onShizukuModeChanged: (Boolean) -> Unit,
+    onRestartZygoteChanged: (Boolean) -> Unit,
+    onAutoStartShizukuChanged: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     val view = LocalView.current
     val scope = rememberCoroutineScope()
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showColorDialog by remember { mutableStateOf(false) }
+    var showUptimeDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showShizukuMissingDialog by remember { mutableStateOf(false) }
     var languageMenuTop by remember { mutableStateOf(32.dp) }
     var colorMenuTop by remember { mutableStateOf(32.dp) }
+    var uptimeMenuTop by remember { mutableStateOf(32.dp) }
+    var uptimeSeconds by remember { mutableStateOf(AppPreferences.manualBootMinUptimeSeconds(context)) }
     val density = LocalDensity.current
     val currentLanguageTag = AppPreferences.languageTag(context)
 
@@ -1483,21 +1913,44 @@ private fun SettingsPage(
         )
     }
 
+    if (showUptimeDialog) {
+        val options = DiagnosticUptime.allowedSeconds
+        SideChoiceMenu(
+            choices = options.map { uptimeLabel(it) },
+            selectedIndex = options.indexOf(uptimeSeconds).coerceAtLeast(0),
+            topOffset = uptimeMenuTop,
+            onSelected = { index ->
+                showUptimeDialog = false
+                uptimeSeconds = options[index]
+                AppPreferences.setManualBootMinUptimeSeconds(context, options[index])
+            },
+            onDismiss = { showUptimeDialog = false },
+        )
+    }
+
     if (showAboutDialog) {
         AboutDialog(onDismiss = { showAboutDialog = false })
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(padding),
+        modifier = Modifier.fillMaxSize().padding(padding).hudScanlines().hudVignette(),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            Column(modifier = Modifier.padding(top = 20.dp, bottom = 18.dp)) {
-                Text(stringResource(R.string.settings), style = MaterialTheme.typography.headlineLarge)
+            Column(
+                modifier = Modifier.padding(top = 20.dp, bottom = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                HudHeader(left = "CONFIG", right = "TERMINAL")
+                Text(
+                    stringResource(R.string.settings),
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = HudColors.Bone,
+                )
                 AppVersionText(
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = HudColors.Steel.copy(alpha = 0.8f),
                 )
             }
         }
@@ -1564,14 +2017,82 @@ private fun SettingsPage(
         }
         item { SectionLabel(stringResource(R.string.advanced)) }
         item {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                SettingsSwitchCard(
+                    icon = Icons.Rounded.Memory,
+                    title = stringResource(R.string.advanced_mode),
+                    description = stringResource(R.string.advanced_mode_description),
+                    checked = advancedMode,
+                    position = SettingsCardPosition.Top,
+                    onCheckedChange = {
+                        clickHaptic(view)
+                        onAdvancedModeChanged(it)
+                    },
+                )
+                SettingsCard(
+                    modifier = Modifier.onGloballyPositioned { coordinates ->
+                        uptimeMenuTop = with(density) { coordinates.positionInWindow().y.toDp() }
+                    },
+                    icon = Icons.Rounded.Schedule,
+                    title = stringResource(R.string.boot_min_uptime),
+                    description = stringResource(R.string.boot_min_uptime_description),
+                    value = uptimeLabel(uptimeSeconds),
+                    position = SettingsCardPosition.Bottom,
+                    onClick = {
+                        clickHaptic(view)
+                        showUptimeDialog = true
+                    },
+                )
+            }
+        }
+        item { SectionLabel(stringResource(R.string.shizuku_boot_section)) }
+        item { ShizukuBootSettingsCard() }
+        item { SectionLabel(stringResource(R.string.postroot_section)) }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                SettingsSwitchCard(
+                    icon = Icons.Rounded.Refresh,
+                    title = stringResource(R.string.restart_zygote_after_root_title),
+                    description = stringResource(R.string.restart_zygote_after_root_description),
+                    checked = restartZygoteAfterRoot,
+                    position = SettingsCardPosition.Top,
+                    onCheckedChange = {
+                        clickHaptic(view)
+                        onRestartZygoteChanged(it)
+                    },
+                )
+                SettingsSwitchCard(
+                    icon = Icons.Rounded.CheckCircle,
+                    title = stringResource(R.string.postroot_start_shizuku),
+                    description = stringResource(R.string.postroot_start_shizuku_summary),
+                    checked = autoStartShizukuAfterRoot,
+                    position = SettingsCardPosition.Bottom,
+                    onCheckedChange = {
+                        clickHaptic(view)
+                        onAutoStartShizukuChanged(it)
+                    },
+                )
+            }
+        }
+        item {
+            AdvancedRecoverySettings(
+                rootActive = rootActive,
+                autoRootEnabled = AppPreferences.autoRootEnabled(context),
+                onAutoRootEnabledChanged = {},
+            )
+        }
+        item { SectionLabel(stringResource(R.string.feedback)) }
+        item {
+            val sound = rememberHudSound()
             SettingsSwitchCard(
-                icon = Icons.Rounded.Memory,
-                title = stringResource(R.string.advanced_mode),
-                description = stringResource(R.string.advanced_mode_description),
-                checked = advancedMode,
+                icon = Icons.AutoMirrored.Rounded.VolumeUp,
+                title = stringResource(R.string.sound_effects),
+                description = stringResource(R.string.sound_effects_description),
+                checked = soundEnabled,
                 onCheckedChange = {
                     clickHaptic(view)
-                    onAdvancedModeChanged(it)
+                    onSoundChanged(it)
+                    if (it) sound.play(HudSfx.Confirm, true)
                 },
             )
         }
@@ -1619,11 +2140,13 @@ private fun UpdateSettingsCard(
                 else -> onCheckForUpdate()
             }
         },
-        modifier = Modifier.fillMaxWidth(),
-        shape = expressiveClickableCardShape(interactionSource, position),
+        modifier = Modifier.fillMaxWidth().hudPressScale(interactionSource),
+        shape = hudCutShape(10.dp),
+        border = BorderStroke(1.dp, HudColors.SteelDim.copy(alpha = 0.4f)),
         interactionSource = interactionSource,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            containerColor = HudColors.Plate,
+            contentColor = HudColors.Bone,
         ),
     ) {
         Row(
@@ -1632,15 +2155,20 @@ private fun UpdateSettingsCard(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             when {
-                status is UpdateStatus.Checking -> LoadingIndicator(modifier = Modifier.size(28.dp))
+                status is UpdateStatus.Checking -> LoadingIndicator(
+                    modifier = Modifier.size(28.dp),
+                    color = HudColors.Blood,
+                )
                 status is UpdateStatus.Downloading -> CircularProgressIndicator(
                     progress = { status.progress },
                     modifier = Modifier.size(28.dp),
+                    color = HudColors.Blood,
                 )
                 else -> Icon(
                     Icons.Rounded.SystemUpdate,
                     contentDescription = null,
                     modifier = Modifier.size(28.dp),
+                    tint = HudColors.Blood,
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
@@ -1651,6 +2179,7 @@ private fun UpdateSettingsCard(
                         else -> stringResource(R.string.updater_check)
                     },
                     style = MaterialTheme.typography.titleMedium,
+                    color = HudColors.Bone,
                 )
                 Text(
                     text = when {
@@ -1663,7 +2192,7 @@ private fun UpdateSettingsCard(
                         else -> ""
                     },
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = HudColors.BoneDim,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -1672,7 +2201,7 @@ private fun UpdateSettingsCard(
                 Text(
                     text = stringResource(R.string.updater_button_download),
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = HudColors.Blood,
                     maxLines = 1,
                 )
             }
@@ -1685,6 +2214,7 @@ private fun UpdateSettingsCard(
 private fun TargetSelectionSheet(
     device: DeviceSnapshot,
     catalog: TargetCatalogUiState,
+    hazeState: HazeState,
     onDismiss: () -> Unit,
     onRetry: () -> Unit,
     onNext: (TargetProfile) -> Unit,
@@ -1701,7 +2231,18 @@ private fun TargetSelectionSheet(
     }
     val selectedProfile = catalog.profiles.firstOrNull { it.profileId == selectedProfileId }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.hazeEffect(
+            hazeState,
+            style = HazeStyle(
+                backgroundColor = HudColors.PlateHigh.copy(alpha = 0.88f),
+                blurRadius = 18.dp,
+                tints = emptyList(),
+            ),
+        ),
+        containerColor = HudColors.PlateHigh,
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1709,14 +2250,16 @@ private fun TargetSelectionSheet(
                 .padding(bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                HudHeader(left = "TARGET", right = "SELECT")
                 Text(
                     stringResource(R.string.select_device_title),
                     style = MaterialTheme.typography.headlineSmall,
+                    color = HudColors.Bone,
                 )
                 Text(
                     stringResource(R.string.select_device_description),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = HudColors.BoneDim,
                 )
             }
 
@@ -1747,14 +2290,14 @@ private fun TargetSelectionSheet(
                     modifier = Modifier.fillMaxWidth().height(220.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    LoadingIndicator(color = MaterialTheme.colorScheme.onSurface)
+                    LoadingIndicator(color = HudColors.Blood)
                 }
                 catalog.error != null -> Column(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text(catalog.error, color = MaterialTheme.colorScheme.error)
+                    Text(catalog.error, color = HudColors.WarningAmber)
                     FilledTonalButton(onClick = onRetry) {
                         Text(stringResource(R.string.action_retry))
                     }
@@ -1762,7 +2305,7 @@ private fun TargetSelectionSheet(
                 visibleProfiles.isEmpty() -> Text(
                     stringResource(R.string.no_matching_devices),
                     modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = HudColors.BoneDim,
                 )
                 else -> LazyColumn(
                     modifier = Modifier
@@ -1781,12 +2324,17 @@ private fun TargetSelectionSheet(
                         }
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.large,
+                            shape = hudCutShape(10.dp),
+                            border = BorderStroke(
+                                1.dp,
+                                if (selected) HudColors.Blood else HudColors.SteelDim.copy(alpha = 0.4f),
+                            ),
                             color = if (selected) {
-                                MaterialTheme.colorScheme.primaryContainer
+                                HudColors.DarkRed
                             } else {
-                                MaterialTheme.colorScheme.surfaceContainerHighest
+                                HudColors.Plate
                             },
+                            contentColor = HudColors.Bone,
                         ) {
                             Row(
                                 modifier = Modifier
@@ -1808,11 +2356,12 @@ private fun TargetSelectionSheet(
                                     Text(
                                         profile.displayName,
                                         style = MaterialTheme.typography.titleMedium,
+                                        color = HudColors.Bone,
                                     )
                                     Text(
                                         modelLabel,
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = HudColors.BoneDim,
                                     )
                                 }
                             }
@@ -1849,12 +2398,7 @@ private fun TargetSelectionSheet(
 
 @Composable
 private fun SectionLabel(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 18.dp, top = 6.dp, bottom = 2.dp),
-    )
+    HudSectionLabel(text = text)
 }
 
 private enum class SettingsCardPosition {
@@ -1882,11 +2426,13 @@ private fun SettingsCard(
             clickHaptic(view)
             onClick()
         },
-        modifier = modifier.fillMaxWidth(),
-        shape = expressiveClickableCardShape(interactionSource, position),
+        modifier = modifier.fillMaxWidth().hudPressScale(interactionSource),
+        shape = hudCutShape(10.dp),
+        border = BorderStroke(1.dp, HudColors.SteelDim.copy(alpha = 0.4f)),
         interactionSource = interactionSource,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            containerColor = HudColors.Plate,
+            contentColor = HudColors.Bone,
         ),
     ) {
         Row(
@@ -1894,13 +2440,13 @@ private fun SettingsCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(28.dp))
+            Icon(icon, contentDescription = null, modifier = Modifier.size(28.dp), tint = HudColors.Blood)
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(title, style = MaterialTheme.typography.titleMedium, color = HudColors.Bone)
                 Text(
                     description,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = HudColors.BoneDim,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -1908,7 +2454,7 @@ private fun SettingsCard(
             Text(
                 value,
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
+                color = HudColors.Blood,
                 maxLines = 1,
             )
         }
@@ -1931,11 +2477,17 @@ private fun SettingsSwitchCard(
             clickHaptic(view)
             onCheckedChange(!checked)
         },
-        modifier = Modifier.fillMaxWidth(),
-        shape = expressiveClickableCardShape(interactionSource, position),
+        modifier = Modifier.fillMaxWidth().hudPressScale(interactionSource),
+        shape = hudCutShape(10.dp),
+        border = BorderStroke(
+            1.dp,
+            if (checked) HudColors.Blood.copy(alpha = 0.6f)
+            else HudColors.SteelDim.copy(alpha = 0.4f),
+        ),
         interactionSource = interactionSource,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            containerColor = HudColors.Plate,
+            contentColor = HudColors.Bone,
         ),
     ) {
         Row(
@@ -1943,13 +2495,19 @@ private fun SettingsSwitchCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(28.dp))
+            Icon(icon, contentDescription = null, modifier = Modifier.size(28.dp), tint = HudColors.Blood)
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    HudLed(color = if (checked) HudColors.Blood else HudColors.SteelDim)
+                    Text(title, style = MaterialTheme.typography.titleMedium, color = HudColors.Bone)
+                }
                 Text(
                     description,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = HudColors.BoneDim,
                 )
             }
             Switch(checked = checked, onCheckedChange = null)
@@ -1977,7 +2535,9 @@ private fun ThemeModeSelector(
                 },
                 modifier = Modifier.weight(1f).semantics { role = Role.RadioButton },
                 colors = ToggleButtonDefaults.toggleButtonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    containerColor = HudColors.Plate,
+                    checkedContainerColor = HudColors.DarkRed,
+                    checkedContentColor = HudColors.Bone,
                 ),
                 shapes = when (index) {
                     0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
@@ -2092,40 +2652,25 @@ private fun AboutDialog(onDismiss: () -> Unit) {
 private fun expressiveClickableCardShape(
     interactionSource: MutableInteractionSource,
     position: SettingsCardPosition = SettingsCardPosition.Single,
-): RoundedCornerShape {
+): androidx.compose.ui.graphics.Shape {
+    // HUD angular variant: same pressed/spring behavior, chamfered cut instead of round.
+    // Position param kept for API stability; cut depth varies slightly by group.
     val pressed by interactionSource.collectIsPressedAsState()
-    val topRadius by animateDpAsState(
+    val cut by animateDpAsState(
         targetValue = when {
-            pressed -> 28.dp
-            position == SettingsCardPosition.Single -> 16.dp
-            position in setOf(SettingsCardPosition.GroupedSingle, SettingsCardPosition.Top) -> 24.dp
-            else -> 6.dp
+            pressed -> 18.dp
+            position == SettingsCardPosition.Single -> 12.dp
+            position in setOf(SettingsCardPosition.GroupedSingle, SettingsCardPosition.Top) -> 14.dp
+            position in setOf(SettingsCardPosition.GroupedSingle, SettingsCardPosition.Bottom) -> 14.dp
+            else -> 8.dp
         },
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMedium,
         ),
-        label = "clickable-card-top-corner",
+        label = "clickable-card-cut",
     )
-    val bottomRadius by animateDpAsState(
-        targetValue = when {
-            pressed -> 28.dp
-            position == SettingsCardPosition.Single -> 16.dp
-            position in setOf(SettingsCardPosition.GroupedSingle, SettingsCardPosition.Bottom) -> 24.dp
-            else -> 6.dp
-        },
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMedium,
-        ),
-        label = "clickable-card-bottom-corner",
-    )
-    return RoundedCornerShape(
-        topStart = topRadius,
-        topEnd = topRadius,
-        bottomStart = bottomRadius,
-        bottomEnd = bottomRadius,
-    )
+    return hudCutShape(cut)
 }
 
 @Composable
@@ -2219,8 +2764,10 @@ private fun SideChoiceMenu(
                             indication = null,
                             onClick = {},
                         ),
-                    shape = MaterialTheme.shapes.extraLarge,
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    shape = hudCutShape(10.dp),
+                    border = BorderStroke(1.dp, HudColors.Blood.copy(alpha = 0.5f)),
+                    color = HudColors.PlateHigh,
+                    contentColor = HudColors.Bone,
                     tonalElevation = 0.dp,
                     shadowElevation = 0.dp,
                 ) {
@@ -2236,21 +2783,13 @@ private fun SideChoiceMenu(
                                     closeMenu { onSelected(index) }
                                 },
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = if (selected) {
-                                    MaterialTheme.shapes.extraLarge
-                                } else {
-                                    MaterialTheme.shapes.medium
-                                },
+                                shape = hudCutShape(8.dp),
                                 color = if (selected) {
-                                    MaterialTheme.colorScheme.primaryContainer
+                                    HudColors.DarkRed
                                 } else {
                                     Color.Transparent
                                 },
-                                contentColor = if (selected) {
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                },
+                                contentColor = HudColors.Bone,
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
@@ -2309,3 +2848,11 @@ private fun themeModeLabel(themeMode: AppThemeMode): String = when (themeMode) {
     AppThemeMode.Light -> stringResource(R.string.theme_light)
     AppThemeMode.Dark -> stringResource(R.string.theme_dark)
 }
+
+@Composable
+private fun uptimeLabel(seconds: Int): String =
+    if (seconds <= 0) {
+        stringResource(R.string.uptime_off)
+    } else {
+        stringResource(R.string.uptime_seconds_format, seconds)
+    }

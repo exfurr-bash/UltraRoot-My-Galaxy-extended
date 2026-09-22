@@ -104,8 +104,36 @@ jobs:
           set -euo pipefail
           git checkout --force "$TAG_NAME"
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon
+      - name: Prepare bundled production payloads
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/payloads"
+          git clone --quiet --depth=1 --branch main \
+            "https://github.com/igorcv88/Root-My-Galaxy-Payloads-Extended.git" \
+            "$RUNNER_TEMP/payloads"
+          python3 .github/scripts/prepare_production_payload_bundle.py "$RUNNER_TEMP/payloads" \
+            | tee "$RUNNER_TEMP/payload-provenance.txt"
+          test -s app/src/main/assets/production-payloads/targets-v3.json
+          rm -rf "$RUNNER_TEMP/payloads"
+
+      - name: Restore release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            echo "No KEYSTORE_BASE64 secret; release APK will be unsigned."
+            exit 0
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '\r\n ' | base64 --decode > release.keystore
+          chmod 600 release.keystore
+
+      - name: Build Release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew :app:testDebugUnitTest :app:assembleRelease --no-daemon
 
       - name: Generate release notes
         shell: bash
@@ -131,6 +159,14 @@ jobs:
               echo "First tagged release."
             fi
           } > release-notes.md
+          if [ -s "$RUNNER_TEMP/payload-provenance.txt" ]; then
+            {
+              echo
+              echo "### Payload provenance"
+              echo
+              sed 's/^/- /' "$RUNNER_TEMP/payload-provenance.txt"
+            } >> release-notes.md
+          fi
 
       - name: Create or update GitHub release
         shell: bash
@@ -145,9 +181,9 @@ jobs:
               --title "Release $TAG_NAME" \
               --notes-file release-notes.md \
               --latest
-            gh release upload "$TAG_NAME" app/build/outputs/apk/debug/*.apk --clobber
+            gh release upload "$TAG_NAME" app/build/outputs/apk/release/*.apk --clobber
           else
-            gh release create "$TAG_NAME" app/build/outputs/apk/debug/*.apk \
+            gh release create "$TAG_NAME" app/build/outputs/apk/release/*.apk \
               --title "Release $TAG_NAME" \
               --notes-file release-notes.md \
               --latest

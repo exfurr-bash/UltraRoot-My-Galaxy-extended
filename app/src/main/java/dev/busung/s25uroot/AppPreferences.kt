@@ -30,11 +30,24 @@ enum class AppThemeMode(val storedValue: String) {
 
 object AppPreferences {
     private const val PREFERENCES = "appearance"
+    const val AUTO_ROOT_BOOT_MIN_UPTIME_SECONDS_DEFAULT = 60
     private const val ACCENT_COLOR = "accent_color"
     private const val THEME_MODE = "theme_mode"
     private const val ADVANCED_MODE = "advanced_mode"
     private const val SHIZUKU_MODE = "shizuku_mode"
+    private const val AUTO_ROOT_ENABLED = "auto_root_enabled"
+    // Keep the original storage key. It means the user opted into a post-root
+    // KernelSU soft reboot for manual installs.
+    private const val RESTART_ZYGOTE_AFTER_ROOT = "soft_reboot_after_root"
+    private const val AUTO_START_SHIZUKU_AFTER_ROOT = "auto_start_shizuku_after_root"
+    private const val START_SHIZUKU_ON_BOOT = "start_shizuku_on_boot"
+    private const val SHIZUKU_AUTOMATION_TOKEN = "shizuku_automation_token"
+    private const val ADB_PAIRED = "adb_paired"
+    private const val MANUAL_BOOT_MIN_UPTIME_SEC = "manual_boot_min_uptime_sec"
+    private const val AUTO_ROOT_BOOT_MIN_UPTIME_SEC = "auto_root_boot_min_uptime_sec"
     private const val CONSUMED_INSTALL_REQUEST = "consumed_install_request"
+    private const val BOOT_SEEN = "boot_seen_v1"
+    private const val SOUND_ENABLED = "sound_enabled"
 
     fun accentColor(context: Context): AccentColor = AccentColor.fromStoredValue(
         prefs(context).getString(ACCENT_COLOR, null),
@@ -72,6 +85,106 @@ object AppPreferences {
         prefs(context).edit()
             .putBoolean(SHIZUKU_MODE, enabled)
             .apply()
+    }
+
+    fun autoRootEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(AUTO_ROOT_ENABLED, false)
+    fun setAutoRootEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit()
+            .putBoolean(AUTO_ROOT_ENABLED, enabled)
+            .apply()
+    }
+
+    /** Synchronous variant for boot-time receivers that act before returning. */
+    fun setAutoRootEnabledImmediately(context: Context, enabled: Boolean): Boolean =
+        prefs(context).edit()
+            .putBoolean(AUTO_ROOT_ENABLED, enabled)
+            .commit()
+
+    fun restartZygoteAfterRoot(context: Context): Boolean =
+        prefs(context).getBoolean(RESTART_ZYGOTE_AFTER_ROOT, false)
+
+    fun setRestartZygoteAfterRoot(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(RESTART_ZYGOTE_AFTER_ROOT, enabled).apply()
+    }
+
+    fun autoStartShizukuAfterRoot(context: Context): Boolean =
+        prefs(context).getBoolean(AUTO_START_SHIZUKU_AFTER_ROOT, true)
+
+    fun setAutoStartShizukuAfterRoot(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(AUTO_START_SHIZUKU_AFTER_ROOT, enabled).apply()
+    }
+
+    /**
+     * Independent pre-root boot bootstrap. Default off so an existing Shizuku,
+     * Tasker, or other boot starter remains the single owner until the user opts
+     * in to RMG's redundant coordinator explicitly.
+     */
+    fun startShizukuOnBoot(context: Context): Boolean =
+        prefs(context).getBoolean(START_SHIZUKU_ON_BOOT, false)
+
+    fun setStartShizukuOnBoot(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(START_SHIZUKU_ON_BOOT, enabled).apply()
+    }
+
+    /** Authentication token shown by the user's Shizuku automation UI. */
+    fun shizukuAutomationToken(context: Context): String =
+        prefs(context).getString(SHIZUKU_AUTOMATION_TOKEN, "").orEmpty()
+
+    fun setShizukuAutomationToken(context: Context, token: String) {
+        prefs(context).edit().putString(SHIZUKU_AUTOMATION_TOKEN, token.trim()).apply()
+    }
+
+    fun adbPaired(context: Context): Boolean =
+        prefs(context).getBoolean(ADB_PAIRED, false)
+
+    fun setAdbPaired(context: Context, paired: Boolean) {
+        prefs(context).edit().putBoolean(ADB_PAIRED, paired).apply()
+    }
+
+    /**
+     * Manual Online/Offline launch gate. Default off: the exploit runs as soon
+     * as the user confirms. A stabilization wait can be opted into below.
+     */
+    fun manualBootMinUptimeSeconds(context: Context): Int = DiagnosticUptime.normalize(
+        prefs(context).getInt(MANUAL_BOOT_MIN_UPTIME_SEC, 0),
+    )
+
+    fun setManualBootMinUptimeSeconds(context: Context, seconds: Int) {
+        prefs(context).edit()
+            .putInt(MANUAL_BOOT_MIN_UPTIME_SEC, DiagnosticUptime.normalize(seconds))
+            .apply()
+    }
+
+    /**
+     * Auto Root total-uptime floor, consumed by the Shizuku boot guard.
+     * Kept independent from any manual-run policy on purpose.
+     */
+    fun autoRootBootMinUptimeSeconds(context: Context): Int = DiagnosticUptime.normalize(
+        prefs(context).getInt(
+            AUTO_ROOT_BOOT_MIN_UPTIME_SEC,
+            AUTO_ROOT_BOOT_MIN_UPTIME_SECONDS_DEFAULT,
+        ),
+    )
+
+    fun setAutoRootBootMinUptimeSeconds(context: Context, seconds: Int) {
+        prefs(context).edit()
+            .putInt(AUTO_ROOT_BOOT_MIN_UPTIME_SEC, DiagnosticUptime.normalize(seconds))
+            .apply()
+    }
+
+    fun bootSeen(context: Context): Boolean =
+        prefs(context).getBoolean(BOOT_SEEN, false)
+
+    fun setBootSeen(context: Context) {
+        prefs(context).edit().putBoolean(BOOT_SEEN, true).apply()
+    }
+
+    fun soundEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(SOUND_ENABLED, true)
+
+    fun setSoundEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(SOUND_ENABLED, enabled).apply()
     }
 
     @Synchronized
